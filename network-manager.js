@@ -6,6 +6,18 @@ export let isHost = false;
 export let rawPlayerList = []; 
 export let guestConnections = []; // ホスト用: 接続されたconnの配列
 export let connToHost = null;     // ゲスト用: ホストへのconn
+export let peer = null;           // PeerJSインスタンス用
+
+// 💡 共通の接続安定化オプション（GoogleのパブリックSTUNサーバーを指定してタイムアウトを防ぐ）
+const peerOptions = {
+    config: {
+        'iceServers': [
+            { url: 'stun:stun.l.google.com:19302' },
+            { url: 'stun:stun1.l.google.com:19302' },
+            { url: 'stun:stun2.l.google.com:19302' }
+        ]
+    }
+};
 
 export function setIsHost(val) { 
     isHost = val; 
@@ -79,7 +91,7 @@ export function handleHostReceiveData(conn, data) {
     }
 }
 
-// ゲストがデータを受信した時の処理 (課題5, 7完全対応)
+// ゲストがデータを受信した時の処理
 export function handleGuestReceiveData(data) {
     if (isHost) return;
 
@@ -93,7 +105,7 @@ export function handleGuestReceiveData(data) {
         // サーバ側（ホスト側）から同期されたリストをそのまま受け取る
         rawPlayerList = data.rawPlayerList;
 
-        // ゲーム内プレイヤー状態の復元（他人の手札の中身は隠蔽されたまま配列長さを維持）
+        // ゲーム内プレイヤー状態の復元
         if (data.gameState.players) {
             game.players = data.gameState.players;
         }
@@ -112,7 +124,7 @@ export function handleGuestReceiveData(data) {
             }
         }
 
-        // 課題5解決：自分宛ての魔術師の極秘のぞき見データがあれば、ポップアップUIを起動
+        // 自分宛ての魔術師の極秘のぞき見データがあれば、ポップアップUIを起動
         if (data.secretView) {
             if (typeof window.showSecretCardModal === "function") {
                 window.showSecretCardModal(data.secretView.targetName, data.secretView.cardValue);
@@ -135,7 +147,7 @@ export function handleGuestReceiveData(data) {
     }
 }
 
-// プレイヤー切断時の共通処理（元の30行を完全復元・強化）
+// プレイヤー切断時の共通処理
 function handlePlayerDisconnect(peerId) {
     const leftPlayer = rawPlayerList.find(p => p.id === peerId);
     if (!leftPlayer) return;
@@ -181,14 +193,14 @@ function handlePlayerDisconnect(peerId) {
     updateUI();
 }
 
-// ホストから全ゲストへ状態をブロードキャスト（課題5, 6, 7対応版）
+// ホストから全ゲストへ状態をブロードキャスト
 export function broadcastState() {
     if (!isHost) return;
 
     guestConnections.forEach(conn => {
         if (!conn.open) return;
 
-        // 特定のプレイヤー宛てに魔術師データがあるかチェック（課題5対応）
+        // 特定のプレイヤー宛てに魔術師データがあるかチェック
         let secretViewData = null;
         const targetPlayerInGame = game.players.find(p => p.id === conn.peer);
         if (targetPlayerInGame && targetPlayerInGame.pendingSecretView) {
@@ -288,10 +300,6 @@ export function leaveRoom() {
     }, 200);
 }
 
-// 部屋ID取得およびPeerJS初期化のための追加コード
-
-export let peer = null;
-
 // HTML側のUI操作ヘルパー（IDの表示やコピペ用入力欄への反映）
 function displayMyRoomId(id) {
     const roomIdInput = document.getElementById("room-id-input");     // コピペ用入力欄
@@ -306,8 +314,8 @@ function displayMyRoomId(id) {
  * @param {string} myName - ホストプレイヤーの名前
  */
 export function hostCreateRoom(myName) {
-    // PeerJS のインスタンスを生成（シグナリングサーバへ接続）
-    peer = new Peer();
+    // 💡 接続オプションを適用してインスタンスを生成
+    peer = new Peer(peerOptions);
 
     // 🔑 サーバから一意の「部屋ID（PeerID）」が発行された瞬間
     peer.on("open", (id) => {
@@ -374,7 +382,8 @@ export function guestJoinRoom(targetRoomId, myName) {
         return;
     }
 
-    peer = new Peer();
+    // 💡 接続オプションを適用してインスタンスを生成
+    peer = new Peer(peerOptions);
 
     peer.on("open", (id) => {
         window.myId = id;

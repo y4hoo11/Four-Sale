@@ -1,0 +1,319 @@
+// game-logic.js
+
+class FourSaleGame {
+    constructor() {
+        this.isGameStarted = false;
+        this.players = [];
+        this.turnIndex = 0;
+        this.logMessages = [];
+
+        // フォーセールのコアデータ
+        this.phase = "BID"; // "BID" (フェーズ1: 物件の競り) または "SELL" (フェーズ2: 小切手売却)
+        this.deck = [];     // 現在のフェーズの山札（物件カード or 小切手カード）
+        this.market = [];   // 場にオープンされたカード（競りや売却の対象）
+        this.highestBid = 0; // フェーズ1の現在最高入札額
+
+        // 💡 ホスト変更可能な初期コイン設定（初期値18）
+        this.initialCoins = 18;
+
+        // UI設定との互換用
+        this.cardSettings = {};
+        this.defaultCardSettings = {};
+        this.drawSettings = { firstTurnCount: 0, everyTurnCount: 0 };
+        this.isGameEndedStatus = false;
+    }
+
+    log(msg) {
+        this.logMessages.push(msg);
+        if (this.logMessages.length > 50) this.logMessages.shift();
+
+        // サーバー・クライアント共通でログボックスへ即座に反映
+        const logBox = document.getElementById("log-box");
+        if (logBox) {
+            logBox.innerHTML = "";
+            this.logMessages.forEach(m => {
+                const p = document.createElement("p");
+                p.style.margin = "3px 0";
+                p.innerHTML = m;
+                logBox.appendChild(p);
+            });
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+    }
+
+    // ホストがゲームを開始/次のラウンドへ進むときの初期化
+    initRound(rawPlayerList) {
+        const activePlayers = rawPlayerList.filter(p => !p.disconnected);
+        const pCount = activePlayers.length;
+
+        // 💡 プレイ人数が 3〜6人 の範囲外の場合は弾く
+        if (pCount < 3 || pCount > 6) {
+            alert("フォーセールを遊ぶには3人〜6人のプレイヤー（接続中）が必要です。");
+            return false;
+        }
+
+        this.isGameStarted = true;
+        this.isGameEndedStatus = false; // フラグリセット
+        this.phase = "BID";
+        this.highestBid = 0;
+        this.turnIndex = 0;
+
+        // 1. プレイヤーの初期化（ホストが設定した initialCoins を適用）
+        this.players = activePlayers.map(p => ({
+            id: p.id,
+            name: p.name,
+            coins: this.initialCoins,   // 💡 カスタマイズされた初期コイン
+            bid: 0,                     // このラウンドの現在入札額
+            hasPassed: false,           // 競りから抜けたか
+            hand: [],                   // 獲得した物件カード（フェーズ2の手札になる）
+            checks: [],                 // 獲得した小切手カード（最終スコア用）
+            alive: true,                // ui-manager.jsとの互換用
+            spectator: false,           // 同上
+            protected: false,           // 同上
+            history: []                 // 同上（獲得物件の一覧表示に流用）
+        }));
+
+        // 2. 物件カードデッキの作成 (全30枚: 1〜30)
+        let propertyDeck = [];
+        for (let i = 1; i <= 30; i++) propertyDeck.push(i);
+        this.shuffle(propertyDeck);
+
+        // 💡 人数に応じた「使わない札の枚数」の自動決定
+        let removeCount = 0;
+        if (pCount === 3) removeCount = 6;
+        else if (pCount === 4) removeCount = 2;
+        else if (pCount === 5 || pCount === 6) removeCount = 0;
+
+        this.deck = propertyDeck.slice(removeCount);
+
+        this.log("🏢 <b>【フェーズ1: 物件の競り】が始まりました！</b>");
+        this.log(`全員に初期資金として通貨チップ 🪙<b>${this.initialCoins}枚</b> が配られました。`);
+        this.log(`（現在のプレイ人数: ${pCount}人 / 一度に競る枚数: ${pCount}枚 / 使わない札: ${removeCount}枚）`);
+        
+        this.startLayout();
+        return true;
+    }
+
+    // 新しい場（カードのオープン）を作る
+    startLayout() {
+        this.highestBid = 0;
+        this.players.forEach(p => {
+            p.bid = 0;
+            p.hasPassed = false;
+        });
+
+        // 💡 プレイ人数と同じ枚数（3人なら3枚、4人なら4枚...）を山札からオープン
+        const count = this.players.length;
+        this.market = [];
+        for (let i = 0; i < count; i++) {
+            if (this.deck.length > 0) {
+                this.market.push(this.deck.pop());
+            }
+        }
+
+        // 昇順（小さい順）にソート
+        this.market.sort((a, b) => a - b);
+
+        if (this.phase === "BID") {
+            this.log(`アンベール！場に物件が並びました：[ ${this.market.join(", ")} ]`);
+        } else {
+            this.log(`アンベール！場に小切手が並びました：[ ${this.market.map(v => `$${v},000`).join(", ")} ]`);
+            // 売却フェーズでは全員の行動フラグをリセット
+            this.players.forEach(p => p.hasPassed = false);
+        }
+    }
+
+    // プレイヤーの行動処理 (ui-manager.js から ACTION が飛んできた時に発火)
+    playCard(playerId, actionValue, target) {
+        const p = this.players.find(pl => pl.id === playerId);
+        if (!p) return;
+
+        if (this.phase === "BID") {
+            // ----------------------------------------------------
+            // 【フェーズ1: 競り】での処理
+            // ----------------------------------------------------
+            if (actionValue === -1) {
+                this.processPass(p);
+            } else {
+                const bidAmount = actionValue;
+                if (bidAmount <= this.highestBid) {
+                    this.log(`⚠️ 警告: ${p.name} の入札額(${bidAmount}枚)が最高入札額以下です。`);
+                    return;
+                }
+                if (bidAmount > p.coins) {
+                    this.log(`⚠️ 警告: ${p.name} の所持コインが足りません。`);
+                    return;
+                }
+                p.bid = bidAmount;
+                this.highestBid = bidAmount;
+                this.log(`💰 ${p.name} が 🪙<b>${bidAmount}枚</b> を入札しました。`);
+                this.advanceTurn();
+            }
+        } else {
+            // ----------------------------------------------------
+            // 【フェーズ2: 売却】での処理
+            // ----------------------------------------------------
+            if (!p.hand.includes(actionValue)) return;
+            
+            p.bid = actionValue; // 出した物件を一時的にbid変数に格納して判定に使う
+            p.hasPassed = true;  // 出し終わったフラグ
+            
+            // 手札から消費
+            p.hand = p.hand.filter(v => v !== actionValue);
+            this.log(`🏠 ${p.name} が物件 <b>No.${actionValue}</b> を提示しました（裏向き）。`);
+
+            // 全員が出し終えたかチェック
+            const allSubmitted = this.players.every(pl => pl.hasPassed);
+            if (allSubmitted) {
+                this.resolveSellPhase();
+            } else {
+                this.advanceTurn();
+            }
+        }
+    }
+
+    // 競りでのパス処理
+    processPass(p) {
+        p.hasPassed = true;
+        // 現在残っている最も数値が小さい物件を獲得
+        const rewardedProperty = this.market.shift();
+        p.hand.push(rewardedProperty);
+        p.history.push(rewardedProperty); // 履歴欄にも表示させる
+
+        // パスした人は入札額の「半分（端数切り捨て）」を支払い、残りは手元に戻る
+        const payAmount = Math.floor(p.bid / 2);
+        p.coins -= payAmount;
+
+        this.log(`🏳️ ${p.name} がパス。🪙${payAmount}枚 を支払い、物件 <b>No.${rewardedProperty}</b> を獲得。`);
+
+        // 競りに残っている人数を数える
+        const activePlayers = this.players.filter(pl => !pl.hasPassed);
+
+        if (activePlayers.length === 1) {
+            // 最後に残った1人が自動的に最高額の物件を買い取る（全額支払い）
+            const lastPlayer = activePlayers[0];
+            const topProperty = this.market.shift();
+            lastPlayer.hand.push(topProperty);
+            lastPlayer.history.push(topProperty);
+            lastPlayer.coins -= lastPlayer.bid;
+
+            this.log(`👑 ${lastPlayer.name} が競りに勝ち、🪙${lastPlayer.bid}枚 で物件 <b>No.${topProperty}</b> を獲得。`);
+
+            // 次の場を作るか、フェーズ2へ移行するか
+            this.checkPhaseTransition();
+        } else if (activePlayers.length === 0) {
+            this.checkPhaseTransition();
+        } else {
+            this.advanceTurn();
+        }
+    }
+
+    // 売却フェーズの解決（全員が出した物件の大きさに応じて小切手を配る）
+    resolveSellPhase() {
+        // 出した物件が大きいプレイヤー順に並び替え
+        const submitList = [...this.players].sort((a, b) => b.bid - a.bid);
+        
+        // 小切手（場）も高い順にソートして、高い物件を出した人に高い小切手を配る
+        this.market.sort((a, b) => b - a);
+
+        submitList.forEach((p, idx) => {
+            const checkVal = this.market[idx];
+            p.checks.push(checkVal);
+            // リアルタイムでの集計スコア同期用（小切手総額）
+            p.score = p.checks.reduce((sum, v) => sum + v, 0);
+            this.log(`💵 ${p.name} (物件:${p.bid}) ➡️ 小切手 <b>$${checkVal},000</b> を獲得！`);
+        });
+
+        this.checkPhaseTransition();
+    }
+
+    // ターンの進行とスキップ処理
+    advanceTurn() {
+        const total = this.players.length;
+        for (let i = 0; i < total; i++) {
+            this.turnIndex = (this.turnIndex + 1) % total;
+            if (!this.players[this.turnIndex].hasPassed) {
+                return; // 次の生きているプレイヤーがいれば確定
+            }
+        }
+    }
+
+    // フェーズ切り替えおよびゲーム終了チェック
+    checkPhaseTransition() {
+        if (this.deck.length > 0) {
+            // まだ現在のフェーズの山札があれば次へ
+            this.startLayout();
+            this.turnIndex = 0; 
+        } else if (this.phase === "BID") {
+            // 物件山札が切れたら 【フェーズ2: 小切手の売却】 へ
+            this.phase = "SELL";
+            this.log("💵 <b>【フェーズ2: 小切手の売却】に突入しました！</b>");
+            this.log("手札の物件を1枚選んで一斉に出し、高い小切手を奪い合いましょう。");
+
+            // 小切手デッキの作成 ($0〜$15,000 * 2組、ただし$0は2枚、他も公式準拠の全30枚)
+            let checkValues = [
+                0, 0, 2, 2, 3, 3, 4, 4, 5, 5, 
+                6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 
+                11, 11, 12, 12, 13, 13, 14, 14, 15, 15
+            ];
+            this.shuffle(checkValues);
+
+            // 💡 フェーズ1（物件）と同じ除外ルールを小切手デックにも適用
+            const pCount = this.players.length;
+            let removeCount = 0;
+            if (pCount === 3) removeCount = 6;
+            else if (pCount === 4) removeCount = 2;
+
+            this.deck = checkValues.slice(removeCount);
+
+            // 表示履歴クリア
+            this.players.forEach(p => p.history = []);
+
+            this.startLayout();
+            this.turnIndex = 0;
+        } else {
+            // 全て終了！最終スコア集計
+            this.endRound();
+        }
+    }
+
+    // 最終決算
+    endRound() {
+        this.log("🏁 <b>ゲームが終了しました！最終決算を行います。</b>");
+        
+        let winner = null;
+        let maxTotal = -1;
+
+        this.players.forEach(p => {
+            const checkTotal = p.checks.reduce((sum, v) => sum + v, 0); // 小切手の合計
+            const coinBonus = p.coins;                                  // 💡 残ったコイン枚数
+            
+            // 💡 最終スコア ＝ 小切手合計 ＋ 残ったコインの枚数分
+            const finalScore = checkTotal + coinBonus;
+            p.score = finalScore; // UIバッジに最終スコアを表示
+
+            this.log(`📊 ${p.name}: 小切手 <b>$${checkTotal},000</b> + 残りコイン <b>🪙${coinBonus}枚</b> ➡️ 最終スコア: <b>${finalScore}</b>`);
+
+            if (finalScore > maxTotal) {
+                maxTotal = finalScore;
+                winner = p.name;
+            }
+        });
+
+        this.log(`🎉 🏆 勝者は <b>${winner}</b> です！おめでとうございます！`);
+        this.isGameEndedStatus = true;
+    }
+
+    isGameEnded() {
+        return this.isGameEndedStatus || false;
+    }
+
+    shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[array[j]]] = [array[array[j]], array[i]];
+        }
+    }
+}
+
+export const game = new FourSaleGame();

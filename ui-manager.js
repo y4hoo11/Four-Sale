@@ -107,7 +107,11 @@ function renderPlayerList() {
         const hostCrown = p.isHost ? "👑 " : "";
         const isProtected = game.isGameStarted && game.players.find(gp => gp.id === p.id)?.protected ? "🛡️" : "";
 
-        nameSpan.innerHTML = `${hostCrown}${p.name}${statusText} <span class="score-badge">${p.score || 0}勝</span> ${isProtected}`;
+        // コイン枚数の表示対応（game.playersから現在の所持コインを取得、初期値またはゲーム中の値）
+        const pInGame = game.isGameStarted ? game.players.find(gp => gp.id === p.id) : null;
+        const coinCount = pInGame ? (pInGame.coins ?? game.initialCoins ?? 18) : (game.initialCoins ?? 18);
+
+        nameSpan.innerHTML = `${hostCrown}${p.name}${statusText} <span class="score-badge">${p.score || 0}勝</span> 🪙${coinCount}枚 ${isProtected}`;
         header.appendChild(nameSpan);
 
         // 操作対象が「自分自身以外」の時だけキック・譲渡ボタンを表示するガード
@@ -155,7 +159,7 @@ function renderPlayerList() {
                 pInGame.hand.forEach((cardVal, index) => {
                     const cardBack = document.createElement("div");
                     cardBack.className = "card-back-red";
-                    const isInitialHand = index < game.drawSettings.firstTurnCount;
+                    const isInitialHand = index < (game.drawSettings?.firstTurnCount ?? 1);
                     
                     cardBack.style.width = "55px";
                     cardBack.style.height = "40px";
@@ -241,7 +245,7 @@ export function renderMyHand() {
         card.className = `card card-${val}`;
         card.title = info.desc;
         
-        const isInitialHand = index < game.drawSettings.firstTurnCount;
+        const isInitialHand = index < (game.drawSettings?.firstTurnCount ?? 1);
         const originText = isInitialHand ? "★初手" : "📥ドロー";
 
         card.innerHTML = `
@@ -516,6 +520,21 @@ export function renderCustomSettingsUI() {
     const disabledAttr = isHost ? "" : "disabled";
 
     let html = `<h3>${titleText}</h3>`;
+    
+    // 🪙 コイン設定項目を追加
+    const coinVal = game.initialCoins !== undefined ? game.initialCoins : 18;
+    html += `
+        <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #3498db;">
+            <h4 style="margin: 0 0 8px 0; color: #3498db; font-size:0.9rem;">🪙 トークン設定</h4>
+            <div class="setting-item">
+                <span>初期コイン枚数:</span>
+                <div class="setting-input-wrapper">
+                    <input type="number" id="cfg-initial-coins" value="${coinVal}" min="0" max="99" ${disabledAttr}>
+                </div>
+            </div>
+        </div>
+    `;
+
     html += `<h4 style="margin: 5px 0 12px 0; font-size:0.9rem;">🃏 カードデッキ構成枚数</h4>`;
 
     for (let i = 1; i <= 8; i++) {
@@ -556,6 +575,13 @@ export function renderCustomSettingsUI() {
     div.innerHTML = html;
 
     if (isHost) {
+        // コイン枚数変更イベントの監視
+        document.getElementById("cfg-initial-coins")?.addEventListener("change", (e) => {
+            game.initialCoins = Math.max(0, parseInt(e.target.value) || 0);
+            broadcastState();
+            updateUI();
+        });
+
         document.getElementById("cfg-first-draw")?.addEventListener("change", (e) => {
             if(!game.drawSettings) game.drawSettings = {};
             game.drawSettings.firstTurnCount = Math.max(1, parseInt(e.target.value) || 1);

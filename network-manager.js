@@ -287,3 +287,161 @@ export function leaveRoom() {
         window.location.reload();
     }, 200);
 }
+
+// 部屋ID取得およびPeerJS初期化のための追加コード
+
+export let peer = null;
+
+// HTML側のUI操作ヘルパー（IDの表示やコピペ用入力欄への反映）
+function displayMyRoomId(id) {
+    const roomIdInput = document.getElementById("room-id-input");     // コピペ用入力欄
+    const roomIdDisplay = document.getElementById("room-id-display"); // テキスト表示エリア
+    
+    if (roomIdInput) roomIdInput.value = id;
+    if (roomIdDisplay) roomIdDisplay.innerText = id;
+}
+
+/**
+ * 👑 ホストとして部屋を作成する
+ * @param {string} myName - ホストプレイヤーの名前
+ */
+export function hostCreateRoom(myName) {
+    // PeerJS のインスタンスを生成（シグナリングサーバへ接続）
+    peer = new Peer();
+
+    // 🔑 サーバから一意の「部屋ID（PeerID）」が発行された瞬間
+    peer.on("open", (id) => {
+        window.myId = id; // グローバルに自分のIDを保持
+        setIsHost(true);
+        
+        // 部屋IDを画面に反映
+        displayMyRoomId(id);
+
+        // ホスト自身をプレイヤーリストの先頭に登録
+        rawPlayerList = [{
+            id: id,
+            name: myName || "ホスト",
+            spectator: false,
+            score: 0,
+            isHost: true,
+            disconnected: false
+        }];
+
+        game.log(`🏠 <b>部屋を作成しました！</b>`);
+        game.log(`部屋ID: <b>${id}</b> を一緒に遊ぶ人に共有してください。`);
+        updateUI();
+    });
+
+    // 👥 ゲストがこの部屋に接続してきたときの待ち受け
+    peer.on("connection", (conn) => {
+        setConnections(conn);
+
+        conn.on("open", () => {
+            // 接続完了時はゲストからの JOIN メッセージを待つ
+        });
+
+        conn.on("data", (data) => {
+            let parsedData = data;
+            if (typeof data === "string") {
+                try { parsedData = JSON.parse(data); } catch(e) {}
+            }
+            handleHostReceiveData(conn, parsedData);
+        });
+
+        conn.on("close", () => {
+            handlePlayerDisconnect(conn.peer);
+        });
+
+        conn.on("error", () => {
+            handlePlayerDisconnect(conn.peer);
+        });
+    });
+
+    peer.on("error", (err) => {
+        console.error("PeerJSエラー (ホスト):", err);
+        game.log(`⚠️ ネットワークエラー: ${err.type}`);
+    });
+}
+
+/**
+ * 🟢 ゲストとしてホストの部屋に参加する
+ * @param {string} targetRoomId - 接続先（ホスト）の部屋ID
+ * @param {string} myName - 自分のプレイヤー名
+ */
+export function guestJoinRoom(targetRoomId, myName) {
+    if (!targetRoomId) {
+        alert("参加する部屋IDを入力してください。");
+        return;
+    }
+
+    peer = new Peer();
+
+    peer.on("open", (id) => {
+        window.myId = id;
+        setIsHost(false);
+        displayMyRoomId(id);
+
+        game.log(`🌐 シグナリングサーバに接続しました。ID: ${id}`);
+        game.log(`🏠 部屋 [ ${targetRoomId} ] へ接続を試みています...`);
+
+        // ホストへの P2P 接続を開始
+        const conn = peer.connect(targetRoomId);
+        setConnToHost(conn);
+
+        conn.on("open", () => {
+            game.log("⚡ ホストとの接続が確立しました。入室リクエストを送ります。");
+            
+            // ホストへ入室（JOIN）を通知
+            conn.send(JSON.stringify({
+                type: "JOIN",
+                id: id,
+                name: myName || "ゲスト"
+            }));
+        });
+
+        conn.on("data", (data) => {
+            let parsedData = data;
+            if (typeof data === "string") {
+                try { parsedData = JSON.parse(data); } catch(e) {}
+            }
+            handleGuestReceiveData(parsedData);
+        });
+
+        conn.on("close", () => {
+            game.log("❌ ホストとの接続が切断されました。");
+            setTimeout(() => { window.location.reload(); }, 1500);
+        });
+
+        conn.on("error", (err) => {
+            console.error("接続エラー:", err);
+            game.log("⚠️ ホストへの接続中にエラーが発生しました。");
+        });
+    });
+
+    peer.on("error", (err) => {
+        console.error("PeerJSエラー (ゲスト):", err);
+        if (err.type === "peer-not-found") {
+            alert("指定された部屋IDが見つかりません。入力に間違いがないか確認してください。");
+        }
+        game.log(`⚠️ ネットワークエラー: ${err.type}`);
+    });
+}
+
+// 👑 ホストが権限譲渡されて新ホストの待ち受けを起動する関数
+window.activateHostMode = function() {
+    if (!peer) return;
+    
+    // ゲストからの新規接続イベントの上書き/再登録
+    peer.on("connection", (conn) => {
+        setConnections(conn);
+        conn.on("data", (data) => {
+            let parsedData = data;
+            if (typeof data === "string") {
+                try { parsedData = JSON.parse(data); } catch(e) {}
+            }
+            handleHostReceiveData(conn, parsedData);
+        });
+        conn.on("close", () => { handlePlayerDisconnect(conn.peer); });
+        conn.on("error", () => { handlePlayerDisconnect(conn.peer); });
+    });
+};

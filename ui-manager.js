@@ -107,11 +107,7 @@ function renderPlayerList() {
         const hostCrown = p.isHost ? "👑 " : "";
         const isProtected = game.isGameStarted && game.players.find(gp => gp.id === p.id)?.protected ? "🛡️" : "";
 
-        // コイン枚数の表示対応（game.playersから現在の所持コインを取得、初期値またはゲーム中の値）
-        const pInGame = game.isGameStarted ? game.players.find(gp => gp.id === p.id) : null;
-        const coinCount = pInGame ? (pInGame.coins ?? game.initialCoins ?? 18) : (game.initialCoins ?? 18);
-
-        nameSpan.innerHTML = `${hostCrown}${p.name}${statusText} <span class="score-badge">${p.score || 0}勝</span> 🪙${coinCount}枚 ${isProtected}`;
+        nameSpan.innerHTML = `${hostCrown}${p.name}${statusText} <span class="score-badge">${p.score || 0}勝</span> ${isProtected}`;
         header.appendChild(nameSpan);
 
         // 操作対象が「自分自身以外」の時だけキック・譲渡ボタンを表示するガード
@@ -184,12 +180,12 @@ function renderPlayerList() {
             }
         }
 
-        // 捨て札履歴
-        const pInGame = game.players.find(gp => gp.id === p.id);
-        if (pInGame && pInGame.history && pInGame.history.length > 0) {
+        // 💡 修正箇所：変数の重複宣言エラー(Identifier has already been declared)を回避
+        const pInGameHistory = game.players.find(gp => gp.id === p.id);
+        if (pInGameHistory && pInGameHistory.history && pInGameHistory.history.length > 0) {
             const historyEl = document.createElement("div");
             historyEl.className = "played-history";
-            pInGame.history.forEach(val => {
+            pInGameHistory.history.forEach(val => {
                 const info = game.cardSettings?.[val] || game.defaultCardSettings?.[val] || { name: `カード${val}`, desc: "カスタム効果カード" };
                 const badge = document.createElement("div");
                 badge.className = `history-card card-${val}`;
@@ -210,7 +206,6 @@ function renderPlayerList() {
 }
 
 // 💡 不整合解決: 外部連携用の export キーワードを復元
-// 自分の手札をレンダリング（ゲームスタート時に即座に手札を描画させ同期ズレを完全に防ぐ）
 export function renderMyHand() {
     const cardArea = document.getElementById("card-area");
     const handTitle = document.getElementById("hand-title");
@@ -295,11 +290,9 @@ function selectPlayTarget(cardValue) {
             const btn = document.createElement("button");
             btn.innerText = `${t.name} ${t.protected ? "(🛡️保護中)" : ""}`;
             btn.onclick = () => {
-                // 複数枚所持ルールに対応。相手の手札が2枚以上あれば、どの位置のカードを狙うか選択させる
                 if (t.hand && t.hand.length > 1) {
                     selectTargetCardSlot(cardValue, t.id, t.hand.length);
                 } else {
-                    // 手札が1枚だけならスロット0番を自動指定
                     if (cardValue === 1) {
                         selectGuessValue(cardValue, t.id, 0);
                     } else {
@@ -321,7 +314,6 @@ function selectPlayTarget(cardValue) {
     modal.style.display = "flex";
 }
 
-// 相手が複数枚持っている場合に「何枚目のカードを対象にするか」を選ばせるUI
 function selectTargetCardSlot(cardValue, targetPlayerId, handSize) {
     const container = document.getElementById("target-buttons");
     if (!container) return;
@@ -342,7 +334,6 @@ function selectTargetCardSlot(cardValue, targetPlayerId, handSize) {
     }
 }
 
-// 兵士用：数字選択（選択した手札インデックスを引き継ぐ）
 function selectGuessValue(cardValue, targetPlayerId, targetCardIndex) {
     const container = document.getElementById("target-buttons");
     if (!container) return;
@@ -364,7 +355,6 @@ function selectGuessValue(cardValue, targetPlayerId, targetCardIndex) {
     }
 }
 
-// 見た人にだけゲーム内UIとしてカード内容を綺麗にポップアップ表示し、ログにも記録する関数
 export function showSecretCardModal(targetName, cardValue) {
     const modal = document.getElementById("target-modal");
     const container = document.getElementById("target-buttons");
@@ -391,8 +381,6 @@ export function showSecretCardModal(targetName, cardValue) {
     container.appendChild(closeBtn);
 
     modal.style.display = "flex";
-
-    // 見た人本人だけのログボックスにシステムログとして情報を追記して残す
     game.log(`👁️ [あなた限定ログ] ${targetName} の手札は「${cardValue}: ${info.name}」でした。`);
 }
 window.showSecretCardModal = showSecretCardModal;
@@ -403,7 +391,6 @@ function executePlayCard(cardValue, target) {
         broadcastState();
         updateUI();
     } else {
-        // 💡 不整合解決: window.connToHost ではなく、インポートしたモジュールローカルの connToHost を参照
         if (connToHost && connToHost.open) {
             connToHost.send(JSON.stringify({
                 type: "ACTION",
@@ -415,7 +402,6 @@ function executePlayCard(cardValue, target) {
     }
 }
 
-// トラッカーレンダリング
 function renderTracker() {
     const listEl = document.getElementById("card-tracker-list");
     if (!listEl) return;
@@ -455,7 +441,6 @@ function renderTracker() {
             const isUsed = k >= remain;
 
             badge.className = `tracker-item tracker-${i}`;
-            
             badge.style.display = "inline-flex";
             badge.style.justifyContent = "center";
             badge.style.alignItems = "center";
@@ -470,7 +455,6 @@ function renderTracker() {
             badge.style.whiteSpace = "nowrap";
             
             badge.innerText = circledNumbers[i];
-            
             badge.title = `【${i}: ${info.name}】\n${info.desc}`;
 
             if (isUsed) {
@@ -483,13 +467,11 @@ function renderTracker() {
                 const colors = { 1:"#2ecc71", 2:"#3498db", 3:"#9b59b6", 4:"#e67e22", 5:"#1abc9c", 6:"#e67e22", 7:"#95a5a6", 8:"#f1c40f" };
                 badge.style.background = colors[i] || "#34495e";
             }
-
             listEl.appendChild(badge);
         }
     }
 }
 
-// ⚙️ 統合されたルール・枚数カスタム設定UI
 export function renderCustomSettingsUI() {
     const gameContainer = document.getElementById("game-container");
     if (!gameContainer) return;
@@ -520,21 +502,6 @@ export function renderCustomSettingsUI() {
     const disabledAttr = isHost ? "" : "disabled";
 
     let html = `<h3>${titleText}</h3>`;
-    
-    // 🪙 コイン設定項目を追加
-    const coinVal = game.initialCoins !== undefined ? game.initialCoins : 18;
-    html += `
-        <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #3498db;">
-            <h4 style="margin: 0 0 8px 0; color: #3498db; font-size:0.9rem;">🪙 トークン設定</h4>
-            <div class="setting-item">
-                <span>初期コイン枚数:</span>
-                <div class="setting-input-wrapper">
-                    <input type="number" id="cfg-initial-coins" value="${coinVal}" min="0" max="99" ${disabledAttr}>
-                </div>
-            </div>
-        </div>
-    `;
-
     html += `<h4 style="margin: 5px 0 12px 0; font-size:0.9rem;">🃏 カードデッキ構成枚数</h4>`;
 
     for (let i = 1; i <= 8; i++) {
@@ -575,13 +542,6 @@ export function renderCustomSettingsUI() {
     div.innerHTML = html;
 
     if (isHost) {
-        // コイン枚数変更イベントの監視
-        document.getElementById("cfg-initial-coins")?.addEventListener("change", (e) => {
-            game.initialCoins = Math.max(0, parseInt(e.target.value) || 0);
-            broadcastState();
-            updateUI();
-        });
-
         document.getElementById("cfg-first-draw")?.addEventListener("change", (e) => {
             if(!game.drawSettings) game.drawSettings = {};
             game.drawSettings.firstTurnCount = Math.max(1, parseInt(e.target.value) || 1);

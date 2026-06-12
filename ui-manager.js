@@ -63,7 +63,6 @@ export function updateUI() {
         abortBtn.style.display = (isHost && game.isGameStarted) ? "block" : "none";
     }
 
-    // 💡 不整合解決: game.isGameEnded() メソッドを正しく評価してボタン表示
     const nextRoundBtn = document.getElementById("next-round-btn");
     if (nextRoundBtn) {
         nextRoundBtn.style.display = (isHost && game.isGameStarted && typeof game.isGameEnded === "function" && game.isGameEnded()) ? "block" : "none";
@@ -73,6 +72,23 @@ export function updateUI() {
     renderMyHand();
     renderTracker();
     renderCustomSettingsUI();
+
+    // 💡 追加：ゲスト環境でのみ動作する、データの自動不整合（undefined）検知＆再送要求ロジック
+    if (!isHost && game.isGameStarted && game.players && game.players.length > 0) {
+        // 自分自身のゲーム内データを取得
+        const myGameData = game.players.find(p => p.id === window.myId);
+        // コイン枚数が届いていない（undefined）かチェック
+        if (myGameData && myGameData.coins === undefined) {
+            console.warn("⚠️ 描画データに不整合（undefined）を検知。ホストに最新状態の再送を要求します...");
+            if (connToHost && connToHost.open) {
+                connToHost.send(JSON.stringify({
+                    type: "REQUEST_SYNC",
+                    playerId: window.myId,
+                    playerName: myGameData.name
+                }));
+            }
+        }
+    }
 }
 
 // プレイヤーリストのレンダリング

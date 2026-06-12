@@ -8,6 +8,9 @@ export let guestConnections = []; // ホスト用: 接続されたconnの配列
 export let connToHost = null;     // ゲスト用: ホストへのconn
 export let peer = null;           // PeerJSインスタンス用
 
+// F12デバッグ用：いつでもコンソールから game を確認できるようにグローバル化
+window.game = game;
+
 // 💡 共通の接続安定化オプション（GoogleのパブリックSTUNサーバーを指定してタイムアウトを防ぐ）
 const peerOptions = {
     config: {
@@ -87,6 +90,12 @@ export function handleHostReceiveData(conn, data) {
 
         case "LEAVE":
             handlePlayerDisconnect(conn.peer);
+            break;
+
+        // 💡 追加：ゲスト（プレイヤー）からのデータ再送・同期要求を個別に処理する
+        case "REQUEST_SYNC":
+            console.log(`🔄 プレイヤー [${data.playerName || data.playerId}] から再送要求を受信しました。最新データを送信します。`);
+            sendStateToSingleConnection(conn);
             break;
     }
 }
@@ -193,47 +202,52 @@ function handlePlayerDisconnect(peerId) {
     updateUI();
 }
 
+// 特定の1本の接続に対してデータを送る（再送要求応答用ヘルパー）
+function sendStateToSingleConnection(conn) {
+    if (!conn || !conn.open) return;
+
+    let secretViewData = null;
+    const targetPlayerInGame = game.players ? game.players.find(p => p.id === conn.peer) : null;
+    if (targetPlayerInGame && targetPlayerInGame.pendingSecretView) {
+        secretViewData = targetPlayerInGame.pendingSecretView;
+        delete targetPlayerInGame.pendingSecretView;
+    }
+
+    const payload = JSON.stringify({
+        type: "SYNC_STATE",
+        rawPlayerList: rawPlayerList, 
+        gameState: {
+            isGameStarted: game.isGameStarted,
+            deck: game.deck,
+            turnIndex: game.turnIndex,
+            cardSettings: game.cardSettings,
+            drawSettings: game.drawSettings,
+            logMessages: game.logMessages,
+            // 🛠️ 修正: coins, bid, hasPassed をマッピング構造にしっかりと追加
+            players: game.players ? game.players.map(p => ({
+                id: p.id,
+                name: p.name,
+                alive: p.alive,
+                protected: p.protected,
+                history: p.history,
+                spectator: p.spectator,
+                score: p.score,
+                coins: p.coins,         // 🪙 追加
+                bid: p.bid,             // 🪙 追加
+                hasPassed: p.hasPassed, // 🪙 追加
+                hand: (p.id === conn.peer) ? p.hand : p.hand.map(() => 0)
+            })) : []
+        },
+        secretView: secretViewData
+    });
+    conn.send(payload);
+}
+
 // ホストから全ゲストへ状態をブロードキャスト
 export function broadcastState() {
     if (!isHost) return;
-
     guestConnections.forEach(conn => {
-        if (!conn.open) return;
-
-        // 特定のプレイヤー宛てに魔術師データがあるかチェック
-        let secretViewData = null;
-        const targetPlayerInGame = game.players.find(p => p.id === conn.peer);
-        if (targetPlayerInGame && targetPlayerInGame.pendingSecretView) {
-            secretViewData = targetPlayerInGame.pendingSecretView;
-            delete targetPlayerInGame.pendingSecretView; // 送信後に消去
-        }
-
-        const payload = JSON.stringify({
-            type: "SYNC_STATE",
-            rawPlayerList: rawPlayerList, 
-            gameState: {
-                isGameStarted: game.isGameStarted,
-                deck: game.deck,
-                turnIndex: game.turnIndex,
-                cardSettings: game.cardSettings,
-                drawSettings: game.drawSettings,
-                logMessages: game.logMessages,
-                // セキュリティ保護：送信先プレイヤー本人以外の他人の手札の中身は「0」にして送る
-                players: game.players.map(p => ({
-                    id: p.id,
-                    name: p.name,
-                    alive: p.alive,
-                    protected: p.protected,
-                    history: p.history,
-                    spectator: p.spectator,
-                    score: p.score,
-                    hand: (p.id === conn.peer) ? p.hand : p.hand.map(() => 0)
-                }))
-            },
-            secretView: secretViewData // のぞき見データ
-        });
-
-        conn.send(payload);
+        sendStateToSingleConnection(conn);
     });
 }
 
@@ -314,18 +328,14 @@ function displayMyRoomId(id) {
  * @param {string} myName - ホストプレイヤーの名前
  */
 export function hostCreateRoom(myName) {
-    // 💡 接続オプションを適用してインスタンスを生成
     peer = new Peer(peerOptions);
 
-    // 🔑 サーバから一意の「部屋ID（PeerID）」が発行された瞬間
     peer.on("open", (id) => {
         window.myId = id; // グローバルに自分のIDを保持
         setIsHost(true);
         
-        // 部屋IDを画面に反映
         displayMyRoomId(id);
 
-        // ホスト自身をプレイヤーリストの先頭に登録
         rawPlayerList = [{
             id: id,
             name: myName || "ホスト",
@@ -340,7 +350,6 @@ export function hostCreateRoom(myName) {
         updateUI();
     });
 
-    // 👥 ゲストがこの部屋に接続してきたときの待ち受け
     peer.on("connection", (conn) => {
         setConnections(conn);
 
@@ -356,13 +365,8 @@ export function hostCreateRoom(myName) {
             handleHostReceiveData(conn, parsedData);
         });
 
-        conn.on("close", () => {
-            handlePlayerDisconnect(conn.peer);
-        });
-
-        conn.on("error", () => {
-            handlePlayerDisconnect(conn.peer);
-        });
+        conn.on("close", () => { handlePlayerDisconnect(conn.peer); });
+        conn.on("error", () => { handlePlayerDisconnect(conn.peer); });
     });
 
     peer.on("error", (err) => {
@@ -382,7 +386,6 @@ export function guestJoinRoom(targetRoomId, myName) {
         return;
     }
 
-    // 💡 接続オプションを適用してインスタンスを生成
     peer = new Peer(peerOptions);
 
     peer.on("open", (id) => {
@@ -393,14 +396,12 @@ export function guestJoinRoom(targetRoomId, myName) {
         game.log(`🌐 シグナリングサーバに接続しました。ID: ${id}`);
         game.log(`🏠 部屋 [ ${targetRoomId} ] へ接続を試みています...`);
 
-        // ホストへの P2P 接続を開始
         const conn = peer.connect(targetRoomId);
         setConnToHost(conn);
 
         conn.on("open", () => {
             game.log("⚡ ホストとの接続が確立しました。入室リクエストを送ります。");
             
-            // ホストへ入室（JOIN）を通知
             conn.send(JSON.stringify({
                 type: "JOIN",
                 id: id,
@@ -436,11 +437,8 @@ export function guestJoinRoom(targetRoomId, myName) {
     });
 }
 
-// 👑 ホストが権限譲渡されて新ホストの待ち受けを起動する関数
 window.activateHostMode = function() {
     if (!peer) return;
-    
-    // ゲストからの新規接続イベントの上書き/再登録
     peer.on("connection", (conn) => {
         setConnections(conn);
         conn.on("data", (data) => {

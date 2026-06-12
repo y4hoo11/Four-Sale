@@ -359,3 +359,5 @@ class FourSaleGame {
 }
 
 export const game = new FourSaleGame();
+
+window.game = game;

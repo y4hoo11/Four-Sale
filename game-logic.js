@@ -15,6 +15,8 @@ class FourSaleGame {
 
         // 💡 ホスト変更可能な初期コイン設定（初期値18）
         this.initialCoins = 18;
+        // 💡 ホスト変更可能な1フェーズあたりの設定ターン数（デフォルトは5ターン）
+        this.customTurns = 5;
 
         // UI設定との互換用
         this.cardSettings = {};
@@ -73,22 +75,26 @@ class FourSaleGame {
             history: []                 // 同上（獲得物件の一覧表示に流用）
         }));
 
-        // 2. 物件カードデッキの作成 (全30枚: 1〜30)
+        // 2. 物件カードデッキの作成
+        const turns = this.customTurns || 5; 
+        const targetCardCount = pCount * turns; // 💡 必要な総枚数（人数 × ターン数）
+
         let propertyDeck = [];
-        for (let i = 1; i <= 30; i++) propertyDeck.push(i);
+        // 💡 制限解除：必要な枚数に達するまで、1〜30のカードを繰り返しループして追加
+        while (propertyDeck.length < targetCardCount) {
+            for (let i = 1; i <= 30; i++) {
+                propertyDeck.push(i);
+                if (propertyDeck.length === targetCardCount) break;
+            }
+        }
+        
+        // 正確にシャッフル
         this.shuffle(propertyDeck);
-
-        // 💡 人数に応じた「使わない札の枚数」の自動決定
-        let removeCount = 0;
-        if (pCount === 3) removeCount = 6;
-        else if (pCount === 4) removeCount = 2;
-        else if (pCount === 5 || pCount === 6) removeCount = 0;
-
-        this.deck = propertyDeck.slice(removeCount);
+        this.deck = propertyDeck;
 
         this.log("🏢 <b>【フェーズ1: 物件の競り】が始まりました！</b>");
         this.log(`全員に初期資金として通貨チップ 🪙<b>${this.initialCoins}枚</b> が配られました。`);
-        this.log(`（現在のプレイ人数: ${pCount}人 / 一度に競る枚数: ${pCount}枚 / 使わない札: ${removeCount}枚）`);
+        this.log(`（現在のプレイ人数: ${pCount}人 / 各フェーズ: ${turns}ターン / 山札の初期枚数: ${this.deck.length}枚）`);
         
         this.startLayout();
         return true;
@@ -250,21 +256,52 @@ class FourSaleGame {
             this.log("💵 <b>【フェーズ2: 小切手の売却】に突入しました！</b>");
             this.log("手札の物件を1枚選んで一斉に出し、高い小切手を奪い合いましょう。");
 
-            // 小切手デッキの作成 ($0〜$15,000 * 2組、ただし$0は2枚、他も公式準拠の全30枚)
-            let checkValues = [
+            // 1. 公式準拠の基本30枚セット($0〜$15,000)
+            const baseCheckValues = [
                 0, 0, 2, 2, 3, 3, 4, 4, 5, 5, 
                 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 
                 11, 11, 12, 12, 13, 13, 14, 14, 15, 15
             ];
-            this.shuffle(checkValues);
 
-            // 💡 フェーズ1（物件）と同じ除外ルールを小切手デックにも適用
+            // 2. 重複なしの全15種類（均等追加用のプール）
+            const uniqueChecks = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+
             const pCount = this.players.length;
-            let removeCount = 0;
-            if (pCount === 3) removeCount = 6;
-            else if (pCount === 4) removeCount = 2;
+            const turns = this.customTurns || 5;
+            const targetCardCount = pCount * turns; // 必要となる小切手の総枚数
 
-            this.deck = checkValues.slice(removeCount);
+            let checkValues = [...baseCheckValues]; // まず基本の30枚を入れる
+
+            // 💡 30枚で足りない場合の「均等追加ロジック」
+            if (targetCardCount > baseCheckValues.length) {
+                const neededCount = targetCardCount - baseCheckValues.length; // 不足枚数
+
+                let addedCount = 0;
+                while (addedCount < neededCount) {
+                    // 今回のループで追加する枚数 (最大15枚)
+                    const currentLoopCount = Math.min(neededCount - addedCount, uniqueChecks.length);
+
+                    if (currentLoopCount === uniqueChecks.length) {
+                        // 15枚丸ごと必要な場合はそのまま全員追加
+                        checkValues.push(...uniqueChecks);
+                    } else {
+                        // 小さい数と大きい数を等間隔にバラけさせてピックアップ
+                        for (let i = 1; i <= currentLoopCount; i++) {
+                            const ratio = i / (currentLoopCount + 1);
+                            const targetIdx = Math.floor(ratio * uniqueChecks.length);
+                            checkValues.push(uniqueChecks[targetIdx]);
+                        }
+                    }
+                    addedCount += currentLoopCount;
+                }
+            } else if (targetCardCount < baseCheckValues.length) {
+                // 設定された総枚数が30枚より少ない場合は、30枚から削る
+                checkValues = checkValues.slice(0, targetCardCount);
+            }
+
+            // 最終的に出来上がった拡張デッキをシャッフル
+            this.shuffle(checkValues);
+            this.deck = checkValues;
 
             // 表示履歴クリア
             this.players.forEach(p => p.history = []);
@@ -286,9 +323,9 @@ class FourSaleGame {
 
         this.players.forEach(p => {
             const checkTotal = p.checks.reduce((sum, v) => sum + v, 0); // 小切手の合計
-            const coinBonus = p.coins;                                  // 💡 残ったコイン枚数
+            const coinBonus = p.coins;                                  // 残ったコイン枚数
             
-            // 💡 最終スコア ＝ 小切手合計 ＋ 残ったコインの枚数分
+            // 最終スコア ＝ 小切手合計 ＋ 残ったコインの枚数分
             const finalScore = checkTotal + coinBonus;
             p.score = finalScore; // UIバッジに最終スコアを表示
 
@@ -308,6 +345,7 @@ class FourSaleGame {
         return this.isGameEndedStatus || false;
     }
 
+    // Fisher-Yates シャッフルアルゴリズムの正常化
     shuffle(array) {
         for (let i = array.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));

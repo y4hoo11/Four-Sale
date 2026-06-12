@@ -80,9 +80,24 @@ export function handleHostReceiveData(conn, data) {
 
         case "ACTION":
             if (!game.isGameStarted) return;
+            
+            // 🚀 デバッグログ：受信したパケットのプロパティ名をチェック
+            console.log("=== 【通信受信デバッグ】 ===");
+            console.log("パケット全体:", data);
+            console.log("data.cardValue:", data.cardValue);
+            console.log("data.actionValue:", data.actionValue);
+            console.log("data.value:", data.value);
+
             const currentPlayer = game.players[game.turnIndex];
             if (currentPlayer && currentPlayer.id === data.playerId) {
-                game.playCard(data.playerId, data.cardValue, data.target);
+                // 💡 UI（送信側）がどのプロパティ名で送ってきてもいいようにフォールバック（代わりの値）を設定
+                const actualValue = data.cardValue !== undefined ? data.cardValue : (data.actionValue !== undefined ? data.actionValue : data.value);
+                
+                console.log("ロジックに渡す実際の値:", actualValue);
+
+                // 修正：特定した正しい値を第2引数に渡す
+                game.playCard(data.playerId, actualValue, data.target);
+                
                 broadcastState();
                 updateUI();
             }

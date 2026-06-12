@@ -126,7 +126,7 @@ export function handleGuestReceiveData(data) {
                 logBox.innerHTML = "";
                 data.gameState.logMessages.forEach(msg => {
                     const p = document.createElement("p");
-                    p.innerText = msg;
+                    p.innerHTML = msg;
                     logBox.appendChild(p);
                 });
                 logBox.scrollTop = logBox.scrollHeight;

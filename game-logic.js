@@ -141,7 +141,9 @@ class FourSaleGame {
             if (actionValue === -1) {
                 this.processPass(p);
             } else {
-                const bidAmount = actionValue;
+                // 💡 安全策: 念のため数値型に強制変換して比較する
+                const bidAmount = Number(actionValue); 
+                
                 if (bidAmount <= this.highestBid) {
                     this.log(`⚠️ 警告: ${p.name} の入札額(${bidAmount}枚)が最高入札額以下です。`);
                     return;
@@ -150,8 +152,11 @@ class FourSaleGame {
                     this.log(`⚠️ 警告: ${p.name} の所持コインが足りません。`);
                     return;
                 }
+                
                 p.bid = bidAmount;
-                this.highestBid = bidAmount;
+                // 💡 全員の入札の中から確実に最大値を割り出して最高入札額を更新
+                this.highestBid = Math.max(...this.players.map(pl => Number(pl.bid || 0)));
+                
                 this.log(`💰 ${p.name} が 🪙<b>${bidAmount}枚</b> を入札しました。`);
                 
                 // 💡 修正: 入札が成功したら確実に次のプレイヤーへ手番を回す
@@ -175,7 +180,6 @@ class FourSaleGame {
             if (allSubmitted) {
                 this.resolveSellPhase();
             } else {
-                // 💡 修正: 全員が出し終えていない場合は、次の未提示プレイヤーへターンを動かす
                 this.advanceTurn();
             }
         }

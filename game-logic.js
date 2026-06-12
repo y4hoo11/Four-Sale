@@ -131,8 +131,19 @@ class FourSaleGame {
 
     // プレイヤーの行動処理 (ui-manager.js から ACTION が飛んできた時に発火)
     playCard(playerId, actionValue, target) {
+        // 🚀 ここにデバッグログを挿入
+        console.log("=== 【ロジック到達デバッグ】 ===");
+        console.log("1. 届いたplayerId:", playerId);
+        console.log("2. 届いたactionValue:", actionValue, "型:", typeof actionValue);
+        console.log("3. 現在のゲーム全体の最高入札額(highestBid):", this.highestBid);
+
         const p = this.players.find(pl => pl.id === playerId);
-        if (!p) return;
+        if (!p) {
+            console.log("❌ プレイヤーが見つかりませんでした。ID:", playerId);
+            return;
+        } else {
+            console.log("4. 見つかったプレイヤーオブジェクト:", JSON.parse(JSON.stringify(p)));
+        }
 
         if (this.phase === "BID") {
             // ----------------------------------------------------

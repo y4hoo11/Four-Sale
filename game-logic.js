@@ -141,10 +141,9 @@ class FourSaleGame {
             if (actionValue === -1) {
                 this.processPass(p);
             } else {
-                // 💡 対策①: 入力値を確実に「純粋な数値」に変換する（文字列バグの徹底排除）
+                // 💡 確実に整数（Number）に変換
                 const bidAmount = parseInt(actionValue, 10); 
                 
-                // 💡 対策②: 比較対象の highestBid も念のため数値化して安全に比較
                 if (bidAmount <= Number(this.highestBid)) {
                     this.log(`⚠️ 警告: ${p.name} の入札額(${bidAmount}枚)が最高入札額以下です。`);
                     return;
@@ -154,11 +153,11 @@ class FourSaleGame {
                     return;
                 }
                 
-                // プレイヤーの入札額を数値として代入
+                // 個人の入札値を更新
                 p.bid = bidAmount;
 
-                // 💡 対策③: 変数の書き換え順序のバグを防ぐため、
-                // プレイヤー全員の入札額（数値）の中から、リアルタイムで確実に「最大値」を抽出してセットする
+                // 💡 重要：通信パケット（連想配列）になっても数値として絶対同期されるよう、
+                // プロパティ自体に全員の入札額のリアルタイム最大値をダイレクトに叩き込む
                 this.highestBid = Math.max(...this.players.map(pl => Number(pl.bid || 0)));
                 
                 this.log(`💰 ${p.name} が 🪙<b>${bidAmount}枚</b> を入札しました。`);
@@ -221,6 +220,8 @@ class FourSaleGame {
         } else if (activePlayers.length === 0) {
             this.checkPhaseTransition();
         } else {
+            // 💡 パスが発生した際も、残ったプレイヤーの中で最高入札額を確実に再集計する
+            this.highestBid = Math.max(...this.players.map(pl => Number(pl.bid || 0)));
             this.advanceTurn();
         }
     }
@@ -260,7 +261,7 @@ class FourSaleGame {
         if (this.deck.length > 0) {
             // まだ現在のフェーズの山札があれば次へ
             this.startLayout();
-            // 💡 修正: 次のミニラウンド（場）が始まる際、手番インデックスをはじめのプレイヤー（0）に初期化して停滞を防ぐ
+            // 次のミニラウンド（場）が始まる際、手番インデックスをはじめのプレイヤー（0）に初期化して停滞を防ぐ
             this.turnIndex = 0; 
         } else if (this.phase === "BID") {
             // 物件山札が切れたら 【フェーズ2: 小切手の売却】 へ
@@ -367,5 +368,4 @@ class FourSaleGame {
 }
 
 export const game = new FourSaleGame();
-
 window.game = game;

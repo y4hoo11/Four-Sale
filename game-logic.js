@@ -153,6 +153,8 @@ class FourSaleGame {
                 p.bid = bidAmount;
                 this.highestBid = bidAmount;
                 this.log(`💰 ${p.name} が 🪙<b>${bidAmount}枚</b> を入札しました。`);
+                
+                // 💡 修正: 入札が成功したら確実に次のプレイヤーへ手番を回す
                 this.advanceTurn();
             }
         } else {
@@ -173,6 +175,7 @@ class FourSaleGame {
             if (allSubmitted) {
                 this.resolveSellPhase();
             } else {
+                // 💡 修正: 全員が出し終えていない場合は、次の未提示プレイヤーへターンを動かす
                 this.advanceTurn();
             }
         }
@@ -239,7 +242,7 @@ class FourSaleGame {
         for (let i = 0; i < total; i++) {
             this.turnIndex = (this.turnIndex + 1) % total;
             if (!this.players[this.turnIndex].hasPassed) {
-                return; // 次の生きているプレイヤーがいれば確定
+                return; // 次のパスしていないプレイヤーがいれば確定
             }
         }
     }
@@ -249,6 +252,7 @@ class FourSaleGame {
         if (this.deck.length > 0) {
             // まだ現在のフェーズの山札があれば次へ
             this.startLayout();
+            // 💡 修正: 次のミニラウンド（場）が始まる際、手番インデックスをはじめのプレイヤー（0）に初期化して停滞を防ぐ
             this.turnIndex = 0; 
         } else if (this.phase === "BID") {
             // 物件山札が切れたら 【フェーズ2: 小切手の売却】 へ

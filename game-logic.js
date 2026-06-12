@@ -141,10 +141,11 @@ class FourSaleGame {
             if (actionValue === -1) {
                 this.processPass(p);
             } else {
-                // 💡 安全策: 念のため数値型に強制変換して比較する
-                const bidAmount = Number(actionValue); 
+                // 💡 対策①: 入力値を確実に「純粋な数値」に変換する（文字列バグの徹底排除）
+                const bidAmount = parseInt(actionValue, 10); 
                 
-                if (bidAmount <= this.highestBid) {
+                // 💡 対策②: 比較対象の highestBid も念のため数値化して安全に比較
+                if (bidAmount <= Number(this.highestBid)) {
                     this.log(`⚠️ 警告: ${p.name} の入札額(${bidAmount}枚)が最高入札額以下です。`);
                     return;
                 }
@@ -153,13 +154,16 @@ class FourSaleGame {
                     return;
                 }
                 
+                // プレイヤーの入札額を数値として代入
                 p.bid = bidAmount;
-                // 💡 全員の入札の中から確実に最大値を割り出して最高入札額を更新
+
+                // 💡 対策③: 変数の書き換え順序のバグを防ぐため、
+                // プレイヤー全員の入札額（数値）の中から、リアルタイムで確実に「最大値」を抽出してセットする
                 this.highestBid = Math.max(...this.players.map(pl => Number(pl.bid || 0)));
                 
                 this.log(`💰 ${p.name} が 🪙<b>${bidAmount}枚</b> を入札しました。`);
                 
-                // 💡 修正: 入札が成功したら確実に次のプレイヤーへ手番を回す
+                // 次のプレイヤーへ手番を回す
                 this.advanceTurn();
             }
         } else {

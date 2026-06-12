@@ -123,6 +123,7 @@ export function handleGuestReceiveData(data) {
         game.isGameStarted = data.gameState.isGameStarted;
         game.deck = data.gameState.deck;
         game.turnIndex = data.gameState.turnIndex;
+        game.highestBid = data.gameState.highestBid || 0;
         game.cardSettings = data.gameState.cardSettings;
         game.drawSettings = data.gameState.drawSettings;
 
@@ -235,10 +236,10 @@ function sendStateToSingleConnection(conn) {
             isGameStarted: game.isGameStarted,
             deck: game.deck,
             turnIndex: game.turnIndex,
+            highestBid: game.highestBid,
             cardSettings: game.cardSettings,
             drawSettings: game.drawSettings,
             logMessages: game.logMessages,
-            // 🛠️ 修正: coins, bid, hasPassed をマッピング構造にしっかりと追加
             players: game.players ? game.players.map(p => ({
                 id: p.id,
                 name: p.name,
@@ -247,9 +248,9 @@ function sendStateToSingleConnection(conn) {
                 history: p.history,
                 spectator: p.spectator,
                 score: p.score,
-                coins: p.coins,         // 🪙 追加
-                bid: p.bid,             // 🪙 追加
-                hasPassed: p.hasPassed, // 🪙 追加
+                coins: p.coins,
+                bid: p.bid,
+                hasPassed: p.hasPassed,
                 hand: (p.id === conn.peer) ? p.hand : p.hand.map(() => 0)
             })) : []
         },

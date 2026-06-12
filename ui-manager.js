@@ -257,23 +257,28 @@ export function renderMyHand() {
     const currentTurnPlayer = game.players[game.turnIndex];
     const isMyTurn = currentTurnPlayer && currentTurnPlayer.id === window.myId;
 
-    // 💰 フェーズ1：手札はない（入札用UIをここに構築可能。今回はパス/入札アクションボタンに割り振るなど）
+    // 💰 フェーズ1：競りフェーズ
     if (game.phase === "BID") {
         if (!isMyTurn || me.hasPassed) {
             cardArea.innerHTML = `<p style="color:#7f8c8d;">他のプレイヤーの入札を待っています...</p>`;
             return;
         }
 
+        // 💡 解決策: game.highestBid 変数に依存せず、全プレイヤーの現在の入札額から最高額をリアルタイムに直接算出
+        const currentHighest = game.players && game.players.length > 0 
+            ? Math.max(...game.players.map(p => Number(p.bid || 0))) 
+            : 0;
+
+        const minBid = currentHighest + 1;
+        
         // 入札用簡易フォーム生成
         const bidContainer = document.createElement("div");
         bidContainer.style.display = "flex";
         bidContainer.style.gap = "10px";
         bidContainer.style.alignItems = "center";
-
-        const minBid = game.highestBid + 1;
         
         bidContainer.innerHTML = `
-            <label>入札額 (現在最高: ${game.highestBid}):</label>
+            <label>入札額 (現在最高: <span style="font-weight:bold; color:#e67e22;">${currentHighest}</span>):</label>
             <input type="number" id="my-bid-input" value="${minBid}" min="${minBid}" max="${me.coins}" style="width:70px; padding:5px;">
             <button id="submit-bid-btn" class="btn-success" style="padding:6px 12px; background:#2ecc71; color:#fff; border:none; border-radius:4px; cursor:pointer;">入札する</button>
             <button id="submit-pass-btn" class="btn-danger" style="padding:6px 12px; background:#e74c3c; color:#fff; border:none; border-radius:4px; cursor:pointer;">パスする</button>
@@ -281,7 +286,7 @@ export function renderMyHand() {
         cardArea.appendChild(bidContainer);
 
         document.getElementById("submit-bid-btn").onclick = () => {
-            const amt = parseInt(document.getElementById("my-bid-input").value) || 0;
+            const amt = parseInt(document.getElementById("my-bid-input").value, 10) || 0;
             executePlayCard(amt, {});
         };
 

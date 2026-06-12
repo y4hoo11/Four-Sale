@@ -207,10 +207,12 @@ class FourSaleGame {
         p.hand.push(rewardedProperty);
         p.history.push(rewardedProperty); // 履歴欄にも表示させる
 
-        // パスした人は入札額の「半分（端数切り捨て）」を支払い、残りは手元に戻る
-        const payAmount = Math.floor(p.bid / 2);
+        // 🪙 奇数対応：入札額の「半分」を計算する際、端数を切り上げて支払額（ロス）にする
+        // 例: 5枚入札してパス ➡️ 5 / 2 = 2.5 ➡️ 切り上げて 3枚支払い
+        const payAmount = Math.ceil(p.bid / 2);
         p.coins -= payAmount;
 
+        // 残りのコイン（p.bid - payAmount）は、最初から p.coins から引いていないため自動的に手元に残ります
         this.log(`🏳️ ${p.name} がパス。🪙${payAmount}枚 を支払い、物件 <b>No.${rewardedProperty}</b> を獲得。`);
 
         // 競りに残っている人数を数える
@@ -227,11 +229,13 @@ class FourSaleGame {
             this.log(`👑 ${lastPlayer.name} が競りに勝ち、🪙${lastPlayer.bid}枚 で物件 <b>No.${topProperty}</b> を獲得。`);
 
             // 次の場を作るか、フェーズ2へ移行するか
+            // 💡 最後の1人は全額支払って競りが終了するため、全員のbidをリセットする前に移行判定へ
             this.checkPhaseTransition();
         } else if (activePlayers.length === 0) {
             this.checkPhaseTransition();
         } else {
             // 💡 パスが発生した際も、残ったプレイヤーの中で最高入札額を確実に再集計する
+            // ここでNumber型変換を保証してバグを完全に抑制
             this.highestBid = Math.max(...this.players.map(pl => Number(pl.bid || 0)));
             this.advanceTurn();
         }

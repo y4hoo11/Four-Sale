@@ -112,14 +112,14 @@ export function handleHostReceiveData(conn, data) {
 export function handleGuestReceiveData(data) {
     if (isHost) return;
 
-    // 💡 追記: ホスト移行命令（HOST_MIGRATION）を受信した場合の処理
+    // 💡 ホスト移行命令（HOST_MIGRATION）を受信した場合の処理
     if (data.type === "HOST_MIGRATION") {
         game.log(`🔄 ホストが ${data.newHostName || "新しいホスト"} に移行されます。ネットワークを再構築中...`);
         isMigrating = true; // 意図的な切断フラグを立ててリロードを抑止
 
         // 1. 古いホストとのP2Pコネクションを破棄
         if (connToHost) {
-            connToHost.close();
+            try { connToHost.close(); } catch(e) {}
             connToHost = null;
         }
 
@@ -128,7 +128,7 @@ export function handleGuestReceiveData(data) {
             setIsHost(true);
             isMigrating = false;
 
-            // 旧ホストから届いた「完全なゲーム状態（チート防止フィルターなし）」を自分のgameオブジェクトにマージして完全復元
+            // 旧ホストから届いた「完全なゲーム状態」を自分のgameオブジェクトにマージして完全復元
             if (data.fullGameState) {
                 try {
                     const parsedGame = JSON.parse(data.fullGameState);
@@ -155,15 +155,15 @@ export function handleGuestReceiveData(data) {
         } 
         // 3. 自分は「ゲスト（または旧ホスト）」のままの場合の処理
         else {
-            // 新ホストがPeerのセッションを立ち上げるのを少し待ってから再接続をかける
+            // 💡 修正点: 新ホストがサーバー待ち受け状態に移行するのを確実に待つため、1.5秒待機
             setTimeout(() => {
                 const myProfile = rawPlayerList.find(p => p.id === window.myId);
                 const myName = myProfile ? myProfile.name : "ゲスト";
                 
-                // 新ホストのIDに向けて再入場を試みる（新しいPeerインスタンスが生成され、新しいwindow.myIdを取得する）
                 isMigrating = false;
+                // 新ホストのIDに向けて再入場を試みる
                 guestJoinRoom(data.newHostId, myName);
-            }, 1200);
+            }, 1500);
         }
         return;
     }
@@ -201,7 +201,7 @@ export function handleGuestReceiveData(data) {
             }
         }
 
-        // 💡 補足: 自動移行でホストになった場合のフォールバック（HOST_MIGRATIONが不発だった場合用）
+        // 💡 自動移行でホストになった場合のフォールバック（HOST_MIGRATIONが不発だった場合用）
         const myInfo = rawPlayerList.find(p => p.id === window.myId);
         if (myInfo && myInfo.isHost && !isHost) {
             setIsHost(true);
@@ -342,16 +342,14 @@ export function hostTransferAuthority(peerId) {
     const target = rawPlayerList.find(p => p.id === peerId);
     if (!target || target.disconnected) return;
 
-    // 💡 既存の内部ロジック関数 transferHostPrivilege を叩いて完全移行シーケンスを開始
     transferHostPrivilege(peerId);
 }
 
-// 部屋を離脱
+// 部屋を離遅
 export function leaveRoom() {
     if (isHost) {
         const nextHost = rawPlayerList.find(p => p.id !== window.myId && !p.disconnected);
         if (nextHost) {
-            // 自発的離脱の際も、可能なら権限移行シーケンスを走らせる
             transferHostPrivilege(nextHost.id);
             return;
         }
@@ -382,6 +380,12 @@ function displayMyRoomId(id) {
  * 👑 ホストとして部屋を作成する
  */
 export function hostCreateRoom(myName) {
+    // 💡 古いインスタンスがあればクリーンアップしてから生成
+    if (peer) {
+        try { peer.destroy(); } catch(e) {}
+        peer = null;
+    }
+
     peer = new Peer(peerOptions);
 
     peer.on("open", (id) => {
@@ -417,6 +421,20 @@ export function guestJoinRoom(targetRoomId, myName) {
         return;
     }
 
+    // 💡 修正点1: 既に古いPeerインスタンスが存在する場合は、完全に破棄（クリーンアップ）してから再生成する
+    if (peer) {
+        try {
+            peer.off("open");
+            peer.off("connection");
+            peer.off("error");
+            peer.destroy(); // 完全に通信ポートやセッションのゴミを解放
+            console.log("🧹 古いPeerインスタンスを正常にクリーンアップしました。");
+        } catch(e) {
+            console.error("Peerの破棄中にエラー:", e);
+        }
+        peer = null;
+    }
+
     peer = new Peer(peerOptions);
 
     peer.on("open", (id) => {
@@ -449,7 +467,6 @@ export function guestJoinRoom(targetRoomId, myName) {
         });
 
         conn.on("close", () => {
-            // 💡 改善点: ホスト移行作業中の意図的な切断であればリロードをスルーする
             if (isMigrating) {
                 console.log("🛠️ ホスト移行中のため、一時的な切断を許容します。");
                 return;
@@ -477,7 +494,7 @@ export function guestJoinRoom(targetRoomId, myName) {
 window.activateHostMode = function() {
     if (!peer) return;
     
-    // 以前登録された古い connection リスナーがあれば上書きできるように再バインド
+    // 以前登録された古い connection リスナーをクリアして二重登録を防ぐ
     peer.off("connection"); 
     
     peer.on("connection", (conn) => {
@@ -505,7 +522,7 @@ export function transferHostPrivilege(newHostId) {
 
     game.log(`🔄 ホスト権限を ${targetName} へ移行する手続きを開始しました...`);
 
-    // 1. 新ホストに渡すための「完全なゲーム状態（他人の秘密手札なども全て保持）」をシリアライズ
+    // 1. 新ホストに渡すための「完全なゲーム状態」をシリアライズ
     const fullGameState = JSON.stringify(game);
 
     // 2. 全員に「ホスト移行通知」と「完全な生データ」をブロードキャスト
@@ -515,7 +532,6 @@ export function transferHostPrivilege(newHostId) {
         newHostName: targetName,
         fullGameState: fullGameState, 
         rawPlayerList: rawPlayerList.map(p => {
-            // これから新ホストに切り替わるターゲットのフラグを事前にtrueにしておく
             if (p.id === newHostId) p.isHost = true;
             if (p.id === window.myId) p.isHost = false;
             return p;
@@ -531,15 +547,21 @@ export function transferHostPrivilege(newHostId) {
     // 3. 自分自身を「ゲスト」に降格させる
     setIsHost(false);
 
-    // 4. 旧ホスト自身も、1秒後に「新しいホスト」に子機としてぶら下がるため接続を実行
+    // 💡 修正点2: タイミングバグの修正
+    // 1.5秒待って、新ホストの開通完了＆他ゲストの離脱を待ってから旧ホストの再接続を行う
     setTimeout(() => {
+        console.log("🔄 旧ホストのネットワーククリーンアップを実行します。");
         if (guestConnections) {
-            guestConnections.forEach(c => c.close()); // 古い子機チャンネルを全切断
+            guestConnections.forEach(c => {
+                try { c.close(); } catch(e){}
+            }); // 古い子機チャンネルを全切断
+            guestConnections = [];
         }
         const myProfile = rawPlayerList.find(p => p.id === window.myId);
         const myName = myProfile ? myProfile.name : "旧ホスト";
         
         isMigrating = false;
+        // 旧ホストも古いPeerオブジェクトがクリアされ、安全に新ホストへ子機として接続を試みる
         guestJoinRoom(newHostId, myName);
-    }, 1000);
+    }, 1500);
 }

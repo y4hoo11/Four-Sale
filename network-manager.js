@@ -123,39 +123,69 @@ export function handleGuestReceiveData(data) {
             connToHost = null;
         }
 
-        // 2. 自分が「新ホスト」に指名されていた場合の処理
+        // 2. 自分が「新ホスト」に指名されていた場合の処理（★ここを修正）
         if (window.myId === data.newHostId) {
-            setIsHost(true);
-            isMigrating = false;
+            
+            // 旧ホストから届いた「完全なゲーム状態」を退避（Peerリセットで消えないようにする）
+            let backupGameState = data.fullGameState;
+            let backupPlayerList = data.rawPlayerList;
 
-            // 旧ホストから届いた「完全なゲーム状態」を自分のgameオブジェクトにマージして完全復元
-            if (data.fullGameState) {
+            game.log("👑 あなたが新しいホストに指名されました。ホストサーバーを起動しています...");
+
+            // 💡 既存の古いPeer（ゲスト用）を完全に破棄してポートを解放する
+            if (peer) {
                 try {
-                    const parsedGame = JSON.parse(data.fullGameState);
-                    Object.assign(game, parsedGame);
-                } catch (e) {
-                    console.error("ゲームデータの復元に失敗しました:", e);
-                }
-            }
-            
-            // ルーム名簿を引き継ぎ、自分をホストとしてマーク
-            rawPlayerList = data.rawPlayerList;
-            const me = rawPlayerList.find(p => p.id === window.myId);
-            if (me) {
-                me.isHost = true;
-                me.disconnected = false;
+                    peer.off("open");
+                    peer.off("connection");
+                    peer.off("error");
+                    peer.destroy();
+                } catch(e) { console.error(e); }
+                peer = null;
             }
 
-            // 新ホストとしての「子機からの接続待ち受け（サーバーモード）」を即時起動
-            guestConnections = []; 
-            window.activateHostMode();
-            
-            game.log("👑 あなたが新しいホストになりました！他のプレイヤーの再接続を待っています。");
-            updateUI();
+            // 旧ホストが使っていた「同じ部屋ID」を自分が引き継いでPeerを再生成する
+            peer = new Peer(data.newHostId, peerOptions); 
+
+            peer.on("open", (id) => {
+                window.myId = id;
+                setIsHost(true);
+                isMigrating = false;
+                displayMyRoomId(id);
+
+                // 退避していたゲームデータを自分のgameオブジェクトにマージして完全復元
+                if (backupGameState) {
+                    try {
+                        const parsedGame = JSON.parse(backupGameState);
+                        Object.assign(game, parsedGame);
+                    } catch (e) {
+                        console.error("ゲームデータの復元に失敗しました:", e);
+                    }
+                }
+                
+                // ルーム名簿を引き継ぎ、自分をホストとしてマーク
+                rawPlayerList = backupPlayerList;
+                const me = rawPlayerList.find(p => p.id === window.myId);
+                if (me) {
+                    me.isHost = true;
+                    me.disconnected = false;
+                }
+
+                // 新ホストとしての「子機からの接続待ち受け（サーバーモード）」を起動
+                guestConnections = []; 
+                window.activateHostMode();
+                
+                game.log("👑 ホストサーバーの起動が完了しました！他のプレイヤーの再接続を待っています。");
+                updateUI();
+            });
+
+            peer.on("error", (err) => {
+                console.error("新ホスト起動中のエラー:", err);
+                game.log(`⚠️ 新ホスト起動エラー: ${err.type}`);
+            });
         } 
         // 3. 自分は「ゲスト（または旧ホスト）」のままの場合の処理
         else {
-            // 💡 修正点: 新ホストがサーバー待ち受け状態に移行するのを確実に待つため、1.5秒待機
+            // 新ホストがPeerの再起動を終えて、シグナリングサーバーに部屋を開通させるのを確実に待つ（1.5秒待機）
             setTimeout(() => {
                 const myProfile = rawPlayerList.find(p => p.id === window.myId);
                 const myName = myProfile ? myProfile.name : "ゲスト";
@@ -421,19 +451,22 @@ export function guestJoinRoom(targetRoomId, myName) {
         return;
     }
 
-    // 💡 修正点1: 既に古いPeerインスタンスが存在する場合は、完全に破棄（クリーンアップ）してから再生成する
+    // 💡 既存の古いPeerインスタンスが存在する場合は完全に破棄
     if (peer) {
         try {
             peer.off("open");
             peer.off("connection");
             peer.off("error");
-            peer.destroy(); // 完全に通信ポートやセッションのゴミを解放
+            peer.destroy();
             console.log("🧹 古いPeerインスタンスを正常にクリーンアップしました。");
         } catch(e) {
             console.error("Peerの破棄中にエラー:", e);
         }
         peer = null;
     }
+
+    // 💡 タイムアウト管理用の変数
+    let connectionTimeout = null;
 
     peer = new Peer(peerOptions);
 
@@ -448,7 +481,33 @@ export function guestJoinRoom(targetRoomId, myName) {
         const conn = peer.connect(targetRoomId);
         setConnToHost(conn);
 
+        // 🔥 【新規追加】3秒のタイムアウトタイマーを設定
+        // ホストが部屋を立てていない場合、3秒間 conn.on("open") が呼ばれないため、ここが発動します。
+        connectionTimeout = setTimeout(() => {
+            game.log("<b style='color: red;'>❌ 入室失敗: ホストから応答がありません。部屋がまだ作成されていないか、IDが間違っています。</b>");
+            
+            // 接続試行を強制中断してクリーンアップ
+            if (conn) {
+                try { conn.close(); } catch(e){}
+                setConnToHost(null);
+            }
+            if (peer) {
+                try { peer.destroy(); } catch(e){}
+                peer = null;
+            }
+
+            // UIを入室前の初期状態（ロビー）に巻き戻してプレイヤーを追い出す
+            updateUI(); 
+            alert("ホストの部屋が見つかりませんでした。ホストが部屋を作成したことを確認してから再度お試しください。");
+        }, 3000); // 💡 3000ms = 3秒（環境に合わせて2000〜4000に調整してもOKです）
+
         conn.on("open", () => {
+            // 💡 無事に接続できたらタイムアウトタイマーを解除する
+            if (connectionTimeout) {
+                clearTimeout(connectionTimeout);
+                connectionTimeout = null;
+            }
+
             game.log("⚡ ホストとの接続が確立しました。入室リクエストを送ります。");
             
             conn.send(JSON.stringify({
@@ -478,38 +537,34 @@ export function guestJoinRoom(targetRoomId, myName) {
         conn.on("error", (err) => {
             console.error("接続エラー:", err);
             game.log("⚠️ ホストへの接続中にエラーが発生しました。");
+            
+            // エラー時もタイマーがあれば解除
+            if (connectionTimeout) clearTimeout(connectionTimeout);
         });
     });
 
     peer.on("error", (err) => {
         console.error("PeerJSエラー (ゲスト):", err);
-    
-        // 💡 ホストが存在しない（部屋を立てていない）場合のエラーハンドリング
+        
+        // タイマーが発動する前に明示的なエラーが返ってきた場合もタイマーを解除して即時クリーンアップ
+        if (connectionTimeout) clearTimeout(connectionTimeout);
+
         if (err.type === "peer-not-found" && !isMigrating) {
-            // 1. ログに失敗メッセージを書き出す
-            game.log("<b style='color: red;'>❌ 入室失敗: 指定された部屋（ホスト）が存在しません。部屋IDを確認してください。</b>");
-            
-            // 2. 状態とグローバル変数を安全にリセット
+            game.log("<b style='color: red;'>❌ 入室失敗: 指定された部屋（ホスト）が存在しません。</b>");
             setIsHost(false);
             if (connToHost) {
                 try { connToHost.close(); } catch(e){}
                 setConnToHost(null);
             }
-
-            // 3. 通信のゴミが残らないように、作成に失敗したPeerオブジェクトを完全に破棄
             if (peer) {
                 try { peer.destroy(); } catch(e){}
                 peer = null;
             }
-
-            // 4. UIマネージャーに通知して、画面を入室前の「初期状態（ロビー）」に戻す
             updateUI(); 
-            
-            // 5. ユーザーに分かりやすくポップアップでお知らせ
             alert("指定された部屋が見つかりませんでした。正しい部屋IDを入力するか、新しく部屋を作成してください。");
-            return;
+        } else {
+            game.log(`⚠️ ネットワークエラー: ${err.type}`);
         }
-        game.log(`⚠️ ネットワークエラー: ${err.type}`);
     });
 }
 

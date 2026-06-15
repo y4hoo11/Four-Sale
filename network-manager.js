@@ -483,8 +483,31 @@ export function guestJoinRoom(targetRoomId, myName) {
 
     peer.on("error", (err) => {
         console.error("PeerJSエラー (ゲスト):", err);
+    
+        // 💡 ホストが存在しない（部屋を立てていない）場合のエラーハンドリング
         if (err.type === "peer-not-found" && !isMigrating) {
-            alert("指定された部屋IDが見つかりません。");
+            // 1. ログに失敗メッセージを書き出す
+            game.log("<b style='color: red;'>❌ 入室失敗: 指定された部屋（ホスト）が存在しません。部屋IDを確認してください。</b>");
+            
+            // 2. 状態とグローバル変数を安全にリセット
+            setIsHost(false);
+            if (connToHost) {
+                try { connToHost.close(); } catch(e){}
+                setConnToHost(null);
+            }
+
+            // 3. 通信のゴミが残らないように、作成に失敗したPeerオブジェクトを完全に破棄
+            if (peer) {
+                try { peer.destroy(); } catch(e){}
+                peer = null;
+            }
+
+            // 4. UIマネージャーに通知して、画面を入室前の「初期状態（ロビー）」に戻す
+            updateUI(); 
+            
+            // 5. ユーザーに分かりやすくポップアップでお知らせ
+            alert("指定された部屋が見つかりませんでした。正しい部屋IDを入力するか、新しく部屋を作成してください。");
+            return;
         }
         game.log(`⚠️ ネットワークエラー: ${err.type}`);
     });

@@ -108,6 +108,8 @@ function beHost() {
 
 // 🌐 部屋に入る (ゲスト処理)
 function joinRoom() {
+    console.log("🟢 [DEBUG 0] 入室ボタンがクリックされました！");
+
     const roomIdInput = document.getElementById("room-id-input");
     const targetRoomId = roomIdInput ? roomIdInput.value.trim() : "";
     
@@ -123,40 +125,10 @@ function joinRoom() {
 
     const nameInput = document.getElementById("name-input");
     window.myPlayerName = nameInput ? nameInput.value.trim() : "ゲスト";
-    setIsHost(false);
 
-    game.log(`🌐 部屋 [${targetRoomId}] に接続を試みています...`);
-
-    const conn = peer.connect(targetRoomId);
-    setConnToHost(conn);
-
-    conn.on('open', () => {
-        game.log(`🟢 ホストに接続しました！認証中...`);
-        // ホストに自身のプレイヤー情報を送信
-        conn.send(JSON.stringify({
-            type: "JOIN",
-            id: window.myId,
-            name: window.myPlayerName
-        }));
-
-        document.getElementById("setup-container").style.display = "none";
-        document.getElementById("game-container").style.display = "block";
-    });
-
-    conn.on('data', (dataStr) => {
-        try {
-            const data = typeof dataStr === "string" ? JSON.parse(dataStr) : dataStr;
-            handleGuestReceiveData(data);
-        } catch (e) {
-            console.error("ゲストデータ処理エラー:", e);
-        }
-    });
-
-    conn.on('close', () => {
-        // 自分が新ホストに昇格して通信が切れたケースを除外してリロード
-        if (!window.isHostMigrated) {
-            alert("ホストとの接続が切断されました。");
-            window.location.reload();
-        }
+    // 💡 既に network-manager.js 側に高機能な guestJoinRoom があるので、処理をそちらに丸投げする
+    import("./network-manager.js").then(mod => {
+        console.log("[DEBUG] network-manager.js の guestJoinRoom を呼び出します。");
+        mod.guestJoinRoom(targetRoomId, window.myPlayerName);
     });
 }

@@ -451,13 +451,13 @@ export function guestJoinRoom(targetRoomId, myName) {
         return;
     }
 
-    // 💡 既存の古いPeerインスタンスが存在する場合は完全に破棄
+    // 💡 既に古いPeerインスタンスが存在する場合は、完全に破棄（クリーンアップ）してから再生成する
     if (peer) {
         try {
             peer.off("open");
             peer.off("connection");
             peer.off("error");
-            peer.destroy();
+            peer.destroy(); // 完全に通信ポートやセッションのゴミを解放
             console.log("🧹 古いPeerインスタンスを正常にクリーンアップしました。");
         } catch(e) {
             console.error("Peerの破棄中にエラー:", e);
@@ -465,7 +465,7 @@ export function guestJoinRoom(targetRoomId, myName) {
         peer = null;
     }
 
-    // 💡 タイムアウト管理用の変数
+    // 💡 タイムアウト管理用のタイマー変数を定義
     let connectionTimeout = null;
 
     peer = new Peer(peerOptions);
@@ -481,12 +481,12 @@ export function guestJoinRoom(targetRoomId, myName) {
         const conn = peer.connect(targetRoomId);
         setConnToHost(conn);
 
-        // 🔥 【新規追加】3秒のタイムアウトタイマーを設定
-        // ホストが部屋を立てていない場合、3秒間 conn.on("open") が呼ばれないため、ここが発動します。
+        // 🔥 【新規追加】3秒のセーフティタイマーを起動
+        // ホストが部屋を立てていない場合、3秒間 conn.on("open") が呼ばれないため、この中の処理が発動します。
         connectionTimeout = setTimeout(() => {
             game.log("<b style='color: red;'>❌ 入室失敗: ホストから応答がありません。部屋がまだ作成されていないか、IDが間違っています。</b>");
             
-            // 接続試行を強制中断してクリーンアップ
+            // 中途半端な接続試行を完全に遮断・クリーンアップ
             if (conn) {
                 try { conn.close(); } catch(e){}
                 setConnToHost(null);
@@ -496,13 +496,13 @@ export function guestJoinRoom(targetRoomId, myName) {
                 peer = null;
             }
 
-            // UIを入室前の初期状態（ロビー）に巻き戻してプレイヤーを追い出す
+            // プレイヤーを初期画面（ロビー）に安全に追い出す
             updateUI(); 
             alert("ホストの部屋が見つかりませんでした。ホストが部屋を作成したことを確認してから再度お試しください。");
-        }, 3000); // 💡 3000ms = 3秒（環境に合わせて2000〜4000に調整してもOKです）
+        }, 3000); // 💡 3000ms ＝ 3秒（反応を早くしたい場合は 2500 などに縮めてもOKです）
 
         conn.on("open", () => {
-            // 💡 無事に接続できたらタイムアウトタイマーを解除する
+            // 💡 3秒以内に無事接続できたら、タイマーを解除して正常に入室処理を行う
             if (connectionTimeout) {
                 clearTimeout(connectionTimeout);
                 connectionTimeout = null;
@@ -538,7 +538,7 @@ export function guestJoinRoom(targetRoomId, myName) {
             console.error("接続エラー:", err);
             game.log("⚠️ ホストへの接続中にエラーが発生しました。");
             
-            // エラー時もタイマーがあれば解除
+            // エラーが発生した際もタイマーを解除
             if (connectionTimeout) clearTimeout(connectionTimeout);
         });
     });
@@ -546,25 +546,28 @@ export function guestJoinRoom(targetRoomId, myName) {
     peer.on("error", (err) => {
         console.error("PeerJSエラー (ゲスト):", err);
         
-        // タイマーが発動する前に明示的なエラーが返ってきた場合もタイマーを解除して即時クリーンアップ
+        // シグナリングサーバーから即座にエラーが返ってきた場合もタイマーを解除
         if (connectionTimeout) clearTimeout(connectionTimeout);
-
+    
         if (err.type === "peer-not-found" && !isMigrating) {
-            game.log("<b style='color: red;'>❌ 入室失敗: 指定された部屋（ホスト）が存在しません。</b>");
+            game.log("<b style='color: red;'>❌ 入室失敗: 指定された部屋（ホスト）が存在しません。部屋IDを確認してください。</b>");
+            
             setIsHost(false);
             if (connToHost) {
                 try { connToHost.close(); } catch(e){}
                 setConnToHost(null);
             }
+
             if (peer) {
                 try { peer.destroy(); } catch(e){}
                 peer = null;
             }
+
             updateUI(); 
             alert("指定された部屋が見つかりませんでした。正しい部屋IDを入力するか、新しく部屋を作成してください。");
-        } else {
-            game.log(`⚠️ ネットワークエラー: ${err.type}`);
+            return;
         }
+        game.log(`⚠️ ネットワークエラー: ${err.type}`);
     });
 }
 

@@ -6,6 +6,18 @@
     <title> 🏢 FOUR SALE </title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        /* IDコピー部分の簡易スタイル */
+        #my-peer-id {
+            cursor: pointer;
+            transition: opacity 0.2s;
+            display: inline-block;
+            margin-bottom: 15px;
+        }
+        #my-peer-id:hover {
+            opacity: 0.7;
+        }
+    </style>
 </head>
 <body>
 
@@ -18,10 +30,13 @@
             <label for="name-input">あなたのプレイヤー名:</label>
             <input type="text" id="name-input" value="プレイヤー" maxlength="10">
         </div>
-        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #dcd1be;">
+
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #4f5d73;">
+        
         <div style="display: flex; gap: 10px; margin-bottom: 20px;">
             <button id="be-host-btn">🏠 部屋を作る (ホスト)</button>
         </div>
+
         <div class="input-group">
             <label for="room-id-input">友達の部屋ID (数字8桁):</label>
             <input type="text" id="room-id-input" placeholder="12345678" maxlength="8">
@@ -29,71 +44,32 @@
         <button id="join-room-btn" class="btn-secondary">🌐 部屋に入る (ゲスト)</button>
     </div>
 
-    <div id="game-container" class="game-layout" style="display: none;">
-        
-        <div class="main-column">
-            
-            <div class="top-action-bar panel-light">
-                <div class="tutorial-icon">🎓</div>
-                <div class="action-prompt"><span class="highlight-red">あなた</span> は行動を選んでください</div>
-                <div class="action-buttons">
-                    <button id="action-bid-btn" class="btn-bid">入札</button>
-                    <button id="action-pass-btn" class="btn-pass">パス</button>
-                </div>
-            </div>
-
-            <div class="auction-board">
-                <div class="auction-cards-wrapper">
-                    <div class="section-title">競売にかけられた物件</div>
-                    <div id="card-area" class="card-area">
-                        </div>
-                </div>
-                <div class="deck-wrapper">
-                    <div class="deck-card">
-                        <div class="deck-title">FOR SALE</div>
-                        <div id="deck-count-badge" class="deck-badge">×25</div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="bid-status-grid" class="bid-status-grid">
-                <div class="bid-box"><span style="color:#e74c3c; font-weight:bold;">You</span> は入札した 0 k$</div>
-                <div class="bid-box"><span style="color:#27ae60; font-weight:bold;">Player2</span> は入札した 0 k$</div>
-                <div class="bid-box"><span style="color:#2980b9; font-weight:bold;">Player3</span> は入札した 0 k$</div>
-                <div class="bid-box"><span style="color:#f39c12; font-weight:bold;">Player4</span> は入札した 0 k$</div>
-            </div>
-
-            <div class="bottom-coin-bar panel-light">
-                <div class="coin-stats">
-                    あなたの現在の入札値：<span id="my-current-bid">1 k$</span> ｜ 
-                    あなたの以前の入札値：<span id="my-prev-bid">0 k$</span> ｜ 
-                    あなたの手持ちのコイン：<span id="my-coins">14 k$</span> ｜ 
-                    入札の最低値：<span id="min-bid">1 k$</span>
-                </div>
-                <div id="coin-buttons-area" class="coin-buttons">
-                    <div class="coin-btn active">1</div>
-                    <div class="coin-btn">1</div>
-                    <div class="coin-btn">1</div>
-                    <div class="coin-btn">1</div>
-                    <div class="coin-btn">1</div>
-                </div>
-            </div>
-            
+    <div id="game-container" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h2 style="margin:0;">ゲームボード</h2>
+            <button id="leave-room-btn">🚪 部屋を離脱</button>
         </div>
 
-        <div class="sidebar-column">
-            
-            <div class="player-list-container panel-light" style="margin-bottom: 0;">
-                <div id="player-list">
-                    </div>
-            </div>
+        <div class="status-panel">
+            <span id="deck-count">山札: --枚</span>
+            <span id="role-display">🟢 待機中</span>
+        </div>
 
-            <button id="leave-room-btn" class="btn-sidebar">つ 初めからチュートリアルをやり直す (退出)</button>
-            <button id="start-game-btn" style="display: none;">🎮 ゲーム開始</button>
-            <button id="next-round-btn" style="display: none; background: #3498db;">🔄 次のラウンドへ</button>
+        <div class="player-list-container">
+            <div id="player-list"></div>
+        </div>
 
-            <div id="log-box" class="panel-light" style="margin-top: 15px;"></div>
-            
+        <div id="log-box"></div>
+
+        <h3 id="hand-title" style="display: none; margin-bottom: 5px;">あなたの手札</h3>
+        <div id="card-area" class="card-area"></div>
+
+        <button id="start-game-btn" style="display: none;">🎮 ゲーム開始</button>
+        <button id="next-round-btn" style="display: none; background: #3498db;">🔄 次のラウンドへ</button>
+
+        <div id="card-tracker-container">
+            <h3 style="font-size: 0.9rem; margin-bottom: 8px;">📊 残りカードトラッカー</h3>
+            <div id="card-tracker-list"></div>
         </div>
     </div>
 

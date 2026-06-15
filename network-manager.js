@@ -458,7 +458,7 @@ export function guestJoinRoom(targetRoomId, myName) {
             peer.off("connection");
             peer.off("error");
             peer.destroy(); // 完全に通信ポートやセッションのゴミを解放
-            console.log("🧹 古いPeerインスタンスを正常にクリーンアップしました。");
+            console.log("🧹 [DEBUG] 古いPeerインスタンスを正常にクリーンアップしました。");
         } catch(e) {
             console.error("Peerの破棄中にエラー:", e);
         }
@@ -478,12 +478,15 @@ export function guestJoinRoom(targetRoomId, myName) {
         game.log(`🌐 シグナリングサーバに接続しました。ID: ${id}`);
         game.log(`🏠 部屋 [ ${targetRoomId} ] へ接続を試みています...`);
 
+        console.log(`[DEBUG 1] ${targetRoomId} に向けて peer.connect() を実行します。`);
         const conn = peer.connect(targetRoomId);
         setConnToHost(conn);
+        console.log(`[DEBUG 2] conn オブジェクトの作成完了。リスナーを登録します。現在の状態:`, conn);
 
-        // 🔥 【新規追加】3秒のセーフティタイマーを起動
+        // 🔥 【3秒のセーフティタイマーを起動】
         // ホストが部屋を立てていない場合、3秒間 conn.on("open") が呼ばれないため、この中の処理が発動します。
         connectionTimeout = setTimeout(() => {
+            console.log(`[DEBUG ❌ TIMEOUT] 3秒間、conn.on("open") が呼ばれませんでした。ホストが部屋を開いていない可能性が極めて高いです。`);
             game.log("<b style='color: red;'>❌ 入室失敗: ホストから応答がありません。部屋がまだ作成されていないか、IDが間違っています。</b>");
             
             // 中途半端な接続試行を完全に遮断・クリーンアップ
@@ -499,10 +502,12 @@ export function guestJoinRoom(targetRoomId, myName) {
             // プレイヤーを初期画面（ロビー）に安全に追い出す
             updateUI(); 
             alert("ホストの部屋が見つかりませんでした。ホストが部屋を作成したことを確認してから再度お試しください。");
-        }, 3000); // 💡 3000ms ＝ 3秒（反応を早くしたい場合は 2500 などに縮めてもOKです）
+        }, 3000); // 💡 3000ms ＝ 3秒（反応を早くしたい場合は 2000〜2500 に縮めてもOKです）
 
         conn.on("open", () => {
-            // 💡 3秒以内に無事接続できたら、タイマーを解除して正常に入室処理を行う
+            console.log(`[DEBUG 3 🎉 OPEN] ホストとの双方向P2P通信（DataConnection）が完全に開通しました！`);
+            
+            // 💡 3秒以内に無事接続できたら、タイムアウトタイマーを解除する
             if (connectionTimeout) {
                 clearTimeout(connectionTimeout);
                 connectionTimeout = null;
@@ -515,6 +520,7 @@ export function guestJoinRoom(targetRoomId, myName) {
                 id: id,
                 name: myName || "ゲスト"
             }));
+            console.log(`[DEBUG 4] ホストへ JOIN メッセージを送信しました。`);
         });
 
         conn.on("data", (data) => {

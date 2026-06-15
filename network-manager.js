@@ -48,33 +48,44 @@ export function handleHostReceiveData(conn, data) {
 
     switch (data.type) {
         case "JOIN":
-            // 💡 改善点: PeerIDが変わっていても「名前」が一致していれば同一人物として復帰・紐付けを行う
-            const disconnectedPlayer = rawPlayerList.find(p => p.name === data.name);
+            // 💡 条件1: 「名前が一致」かつ「本当に現在切断状態（disconnected: true）」のプレイヤーを探す
+            const disconnectedPlayer = rawPlayerList.find(p => p.name === data.name && p.disconnected === true);
             
             if (disconnectedPlayer) {
-                // 既存のアカウントデータを再利用して復帰（新PeerIDの再マッピング）
+                // 【既存プレイヤーの復帰処理】
                 disconnectedPlayer.id = data.id; 
                 disconnectedPlayer.disconnected = false;
-                game.log(`🔄 ${data.name} が新しいホストに再接続・同期しました。`);
+                game.log(`🔄 ${data.name} が再接続・同期しました。`);
 
-                // ゲーム中ならゲームロジック側のプレイヤーIDも即座に更新
                 if (game.isGameStarted && game.players) {
                     const gp = game.players.find(p => p.name === data.name);
                     if (gp) gp.id = data.id;
                 }
             } else {
-                // 完全な新規プレイヤーの追加
+                // 【新規プレイヤーの追加処理】（同名、または完全な新規）
                 if (!rawPlayerList.some(p => p.id === data.id)) {
+                    
+                    // 💡 同名プレイヤー（ホスト含む）がすでにアクティブに存在する場合、名前の後ろに数字をつける
+                    let finalName = data.name || "ゲスト";
+                    let counter = 1;
+                    
+                    // 名前の重複がなくなるまでループして「名前(1)」「名前(2)」を作る
+                    while (rawPlayerList.some(p => p.name === finalName)) {
+                        finalName = `${data.name}(${counter})`;
+                        counter++;
+                    }
+
                     const isSpectator = game.isGameStarted;
                     rawPlayerList.push({
                         id: data.id,
-                        name: data.name || "ゲスト",
+                        name: finalName, // 被らない安全な名前を適用
                         spectator: isSpectator,
                         score: 0,
-                        isHost: false,
+                        isHost: false, // 確実にゲスト（false）として追加
                         disconnected: false
                     });
-                    game.log(`👥 ${data.name} が入室しました。`);
+                    
+                    game.log(`👥 ${finalName} が入室しました。`);
                 }
             }
             broadcastState();

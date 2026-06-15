@@ -123,7 +123,7 @@ export function handleGuestReceiveData(data) {
             connToHost = null;
         }
 
-        // 2. 自分が「新ホスト」に指名されていた場合の処理（★ここを修正）
+        // 2. 自分が「新ホスト」に指名されていた場合の処理
         if (window.myId === data.newHostId) {
             
             // 旧ホストから届いた「完全なゲーム状態」を退避（Peerリセットで消えないようにする）
@@ -133,20 +133,23 @@ export function handleGuestReceiveData(data) {
             game.log("👑 あなたが新しいホストに指名されました。ホストサーバーを起動しています...");
 
             // 💡 既存の古いPeer（ゲスト用）を完全に破棄してポートを解放する
-            if (peer) {
+            const activePeer = window.peer || peer;
+            if (activePeer) {
                 try {
-                    peer.off("open");
-                    peer.off("connection");
-                    peer.off("error");
-                    peer.destroy();
+                    activePeer.off("open");
+                    activePeer.off("connection");
+                    activePeer.off("error");
+                    activePeer.destroy();
                 } catch(e) { console.error(e); }
+                window.peer = null;
                 peer = null;
             }
 
             // 旧ホストが使っていた「同じ部屋ID」を自分が引き継いでPeerを再生成する
-            peer = new Peer(data.newHostId, peerOptions); 
+            window.peer = new Peer(data.newHostId, peerOptions); 
+            peer = window.peer; // ローカル変数側も同期
 
-            peer.on("open", (id) => {
+            window.peer.on("open", (id) => {
                 window.myId = id;
                 setIsHost(true);
                 isMigrating = false;
@@ -178,7 +181,7 @@ export function handleGuestReceiveData(data) {
                 updateUI();
             });
 
-            peer.on("error", (err) => {
+            window.peer.on("error", (err) => {
                 console.error("新ホスト起動中のエラー:", err);
                 game.log(`⚠️ 新ホスト起動エラー: ${err.type}`);
             });
@@ -375,7 +378,7 @@ export function hostTransferAuthority(peerId) {
     transferHostPrivilege(peerId);
 }
 
-// 部屋を離遅
+// 部屋を離脱
 export function leaveRoom() {
     if (isHost) {
         const nextHost = rawPlayerList.find(p => p.id !== window.myId && !p.disconnected);
@@ -411,14 +414,17 @@ function displayMyRoomId(id) {
  */
 export function hostCreateRoom(myName) {
     // 💡 古いインスタンスがあればクリーンアップしてから生成
-    if (peer) {
-        try { peer.destroy(); } catch(e) {}
+    const activePeer = window.peer || peer;
+    if (activePeer) {
+        try { activePeer.destroy(); } catch(e) {}
+        window.peer = null;
         peer = null;
     }
 
-    peer = new Peer(peerOptions);
+    window.peer = new Peer(peerOptions);
+    peer = window.peer;
 
-    peer.on("open", (id) => {
+    window.peer.on("open", (id) => {
         window.myId = id; 
         setIsHost(true);
         
@@ -493,6 +499,12 @@ export function guestJoinRoom(targetRoomId, myName) {
             connectionTimeout = null;
         }
 
+        // 💡 接続に成功したこの瞬間に、ゲストの画面を「ゲーム画面」へパッと切り替える！
+        const setupContainer = document.getElementById("setup-container");
+        const gameContainer = document.getElementById("game-container");
+        if (setupContainer) setupContainer.style.display = "none";
+        if (gameContainer) gameContainer.style.display = "block";
+
         game.log("⚡ ホストとの接続が確立しました。入室リクエストを送ります。");
         
         // 💡 ここでもUUIDではなく、window.myId（8桁）を確実に送信する
@@ -530,12 +542,14 @@ export function guestJoinRoom(targetRoomId, myName) {
 
 // 💡 改善されたサーバー待ち受け処理（移行時の再マッピング対応）
 window.activateHostMode = function() {
-    if (!peer) return;
+    // 💡 window.peer を最優先で参照して一本化
+    const activePeer = window.peer || peer;
+    if (!activePeer) return;
     
     // 以前登録された古い connection リスナーをクリアして二重登録を防ぐ
-    peer.off("connection"); 
+    activePeer.off("connection"); 
     
-    peer.on("connection", (conn) => {
+    activePeer.on("connection", (conn) => {
         setConnections(conn);
         
         conn.on("data", (data) => {

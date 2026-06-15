@@ -1,7 +1,16 @@
 body {
     font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
-    background-color: #2c3e50;
-    color: #ecf0f1;
+    /* 💡 明るい木目のタイル（フローリング風）をCSSグラデーションで表現 */
+    background-color: #e0ca9d;
+    background-image: 
+        linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(0,0,0,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.04) 2px, transparent 2px),
+        linear-gradient(to bottom, #ebd9b4, #d1b782);
+    background-size: 80px 160px, 80px 160px, 40px 160px, 100% 100%;
+    
+    /* 💡 全体的に文字を見やすく補正 */
+    color: #2c3e50; 
     margin: 0;
     padding: 15px;
     display: flex;
@@ -10,55 +19,61 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 h1 {
-    color: #f1c40f;
+    /* 💡 木目の上で映える深みのあるゴールド・ブラウンに */
+    color: #a0522d;
     margin: 5px 0;
     font-size: 1.8rem;
     text-align: center;
+    text-shadow: 1px 1px 0px rgba(255,255,255,0.8);
 }
 h2, h3 {
     margin-top: 0;
-    color: #f1c40f;
+    color: #bc8f8f;
 }
 #my-peer-id {
     font-size: 0.8rem;
-    color: #bdc3c7;
+    color: #ffffff;
     margin-bottom: 15px;
     cursor: pointer;
-    background: rgba(0,0,0,0.2);
+    background: rgba(139, 69, 19, 0.6); /* ウッディなブラウン透明 */
     padding: 4px 10px;
     border-radius: 20px;
     transition: background 0.2s;
 }
 #my-peer-id:hover {
-    background: rgba(0,0,0,0.4);
+    background: rgba(139, 69, 19, 0.8);
 }
 #setup-container, #game-container {
     width: 100%;
     max-width: 600px;
     box-sizing: border-box;
-    background: #34495e;
+    /* 💡 暗いネイビーから、明るいホワイト・ベージュ系の高級感あるパネルに変更 */
+    background: #fdfbf7;
+    color: #333333;
     padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(139,69,19,0.15), 0 2px 4px rgba(0,0,0,0.1);
     margin-bottom: 15px;
+    border: 1px solid #e1d7c1;
 }
 .input-group {
     margin-bottom: 15px;
 }
 
 .custom-card-settings {
-    background: #1a252f;
+    /* 💡 設定エリアも明るく、境界をわかりやすく */
+    background: #f5ede0;
     padding: 12px;
     border-radius: 8px;
     margin-bottom: 15px;
-    border: 1px solid #4f5d73;
+    border: 1px solid #dcd1be;
 }
 .setting-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 6px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(0,0,0,0.05);
 }
 .setting-item:last-child {
     border-bottom: none;
@@ -66,6 +81,7 @@ h2, h3 {
 .setting-card-info {
     font-size: 0.9rem;
     font-weight: bold;
+    color: #5c4033;
 }
 .setting-input-wrapper {
     display: flex;
@@ -77,7 +93,9 @@ h2, h3 {
     padding: 5px;
     text-align: center;
     border-radius: 4px;
-    border: none;
+    border: 1px solid #ccc;
+    background: #ffffff;
+    color: #333;
     font-weight: bold;
     margin: 0;
 }
@@ -92,8 +110,10 @@ input, button {
     margin-top: 5px;
 }
 input {
-    background: #ecf0f1;
+    /* 💡 入力フォームの視認性向上 */
+    background: #ffffff;
     color: #2c3e50;
+    border: 1px solid #bdc3c7;
     font-weight: bold;
 }
 button {
@@ -102,6 +122,7 @@ button {
     cursor: pointer;
     font-weight: bold;
     transition: background 0.2s, transform 0.1s;
+    box-shadow: 0 3px 6px rgba(46,204,113,0.3);
 }
 button:hover {
     background: #27ae60;
@@ -109,7 +130,10 @@ button:hover {
 button:active {
     transform: scale(0.98);
 }
-.btn-secondary { background: #3498db; }
+.btn-secondary { 
+    background: #3498db; 
+    box-shadow: 0 3px 6px rgba(52,152,219,0.3);
+}
 .btn-secondary:hover { background: #2980b9; }
 
 .btn-danger {
@@ -118,6 +142,7 @@ button:active {
     padding: 4px 10px;
     font-size: 0.8rem;
     margin: 0 0 0 5px;
+    box-shadow: none;
 }
 .btn-danger:hover { background: #c0392b; }
 
@@ -127,23 +152,28 @@ button:active {
     padding: 4px 10px;
     font-size: 0.8rem;
     margin: 0 0 0 5px;
+    box-shadow: none;
 }
 .btn-host-transfer:hover { background: #8e44ad; }
 
 #leave-room-btn {
-    background: #7f8c8d;
+    background: #95a5a6;
     width: auto;
     padding: 6px 14px;
     font-size: 0.85rem;
     margin: 0;
+    color: white;
+    box-shadow: none;
 }
 #leave-room-btn:hover {
-    background: #bdc3c7;
-    color: #2c3e50;
+    background: #7f8c8d;
+    color: white;
 }
 
 .status-panel {
-    background: #1a252f;
+    /* 💡 ステータス表示も明るいグリーンベースにスッキリ変更 */
+    background: #e8f8f5;
+    color: #2e4053;
     padding: 10px 15px;
     border-radius: 6px;
     margin-bottom: 15px;
@@ -151,7 +181,7 @@ button:active {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-left: 4px solid #f1c40f;
+    border-left: 4px solid #2ecc71;
 }
 
 .player-list-container {
@@ -165,19 +195,22 @@ button:active {
     flex-direction: column;
     padding: 12px;
     border-left: 5px solid transparent;
-    background: #2c3e50;
+    /* 💡 各プレイヤーのスロットを明るいホワイトグレーに */
+    background: #f2f4f4;
     margin-bottom: 8px;
     border-radius: 8px;
     transition: all 0.2s;
+    color: #2c3e50;
+    border: 1px solid #e5e8e8;
 }
 .player-item.active {
     border-left-color: #2ecc71 !important;
-    box-shadow: 0 0 12px rgba(46, 204, 113, 0.2);
-    background: #34495e;
+    box-shadow: 0 0 12px rgba(46, 204, 113, 0.15);
+    background: #ffffff;
 }
 .player-item.eliminated {
-    background: #1a252f;
-    opacity: 0.4;
+    background: #eaeded;
+    opacity: 0.5;
 }
 .player-header {
     display: flex;
@@ -206,7 +239,8 @@ button:active {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    background: rgba(0, 0, 0, 0.3);
+    /* 💡 履歴の背景を明るい半透明に変更 */
+    background: rgba(0, 0, 0, 0.05);
     padding: 8px;
     border-radius: 6px;
     min-height: 40px;
@@ -219,11 +253,11 @@ button:active {
     padding: 3px 8px;
     border-radius: 4px;
     font-weight: bold;
-    box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    box-shadow: 1px 2px 4px rgba(0,0,0,0.15);
     box-sizing: border-box;
 }
 .history-card div:first-child {
-    background: rgba(0,0,0,0.25);
+    background: rgba(0,0,0,0.15);
     padding: 1px 5px;
     border-radius: 3px;
     font-size: 0.8rem;
@@ -237,12 +271,14 @@ button:active {
 #log-box {
     height: 130px;
     overflow-y: auto;
-    background: #1a252f;
+    /* 💡 ログボックスを明るく読みやすいクラシックな紙調の色に変更 */
+    background: #fafaf6;
+    color: #4a4a4a;
     padding: 10px;
     border-radius: 6px;
     font-size: 0.85rem;
     margin-bottom: 15px;
-    border: 1px solid #4f5d73;
+    border: 1px solid #dcd1be;
     line-height: 1.4;
 }
 
@@ -266,18 +302,18 @@ button:active {
     align-items: center;
     gap: 5px;
     cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
     transition: transform 0.2s, box-shadow 0.2s;
     box-sizing: border-box;
 }
 .card:hover {
     transform: translateY(-8px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
 }
 .card-num {
     font-size: 2.2rem;
     font-weight: bold;
-    text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
 }
 .card-name {
     font-size: 1rem;
@@ -299,7 +335,7 @@ button:active {
     bottom: 108%;
     left: 50%;
     transform: translateX(-50%);
-    box-shadow: 0 6px 15px rgba(0,0,0,0.6);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.3);
     border: 1.5px solid #f1c40f;
     font-size: 0.75rem;
     line-height: 1.4;
@@ -314,11 +350,12 @@ button:active {
 }
 
 #card-tracker-container {
-    background: #1a252f;
+    /* 💡 カウンターエリアも明るいベースに */
+    background: #f5ede0;
     padding: 12px;
     border-radius: 8px;
     margin-top: 15px;
-    border: 1px solid #4f5d73;
+    border: 1px solid #dcd1be;
 }
 #card-tracker-list {
     display: flex;
@@ -328,7 +365,7 @@ button:active {
 .tracker-item {
     padding: 6px 12px;
     border-radius: 6px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     box-sizing: border-box;
 }
 .tracker-circles-container {
@@ -338,11 +375,11 @@ button:active {
     align-items: center;
 }
 .circle-active { color: #fff; text-shadow: 0 0 3px rgba(255,255,255,0.6); }
-.circle-used { color: #fff; }
+.circle-used { color: rgba(255,255,255,0.4); } /* 使用済みの丸を少し薄くして分かりやすく */
 
 .tracker-item.used-up {
-    background: #2c3e50 !important;
-    opacity: 0.25;
+    background: #bdc3c7 !important;
+    opacity: 0.4;
     border: 1px dashed #7f8c8d;
 }
 .tracker-num { font-size: 0.9rem; font-weight: bold; }
@@ -353,13 +390,14 @@ button:active {
     position: fixed;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(0,0,0,0.85);
+    background: rgba(0,0,0,0.6); /* 背景が明るいので、マスクも少し優しく */
     justify-content: center;
     align-items: center;
     z-index: 1000;
 }
 .modal-content {
-    background: #34495e;
+    background: #fdfbf7;
+    color: #333;
     padding: 20px;
     border-radius: 10px;
     text-align: center;
@@ -367,8 +405,8 @@ button:active {
     width: 90%;
     max-height: 85vh;
     overflow-y: auto;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-    border: 1px solid #4f5d73;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    border: 1px solid #dcd1be;
     box-sizing: border-box;
 }
 #target-buttons {
@@ -394,7 +432,7 @@ button:active {
 .modal-content::-webkit-scrollbar-thumb,
 .player-list-container::-webkit-scrollbar-thumb,
 #log-box::-webkit-scrollbar-thumb {
-    background: #4f5d73;
+    background: #bdc3c7;
     border-radius: 3px;
 }
 
@@ -412,14 +450,14 @@ button:active {
 }
 
 .custom-card-settings.guest-view-only {
-    background: #111a22; 
-    opacity: 0.5;         
+    background: #eaeded; 
+    opacity: 0.6;         
     pointer-events: none; 
     border: 1px dashed #7f8c8d; 
 }
 .custom-card-settings.guest-view-only input[type="number"] {
-    background: #7f8c8d; 
-    color: #34495e;
+    background: #bdc3c7; 
+    color: #7f8c8d;
     cursor: not-allowed; 
 }
 #abort-game-btn:hover {
@@ -431,36 +469,7 @@ button:active {
     position: relative;
     width: 100px;
     height: 140px;
-    background: linear-gradient(135deg, #e74c3c, #c0392b); /* 深みのある赤 */
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
     border: 4px solid #ffffff;
     border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: #ffffff;
-    font-family: Arial, sans-serif;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.card-back-red:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 6px 12px rgba(0,0,0,0.4);
-}
-
-/* カード中央の「枚数」を表すバッジ */
-.card-back-center-badge {
-    background: rgba(0, 0, 0, 0.6); /* 黒半透明 */
-    border: 2px solid #f1c40f;      /* ゴールドの枠線 */
-    border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 1.1rem;
-    font-weight: bold;
-    color: #f1c40f;
-    box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
-}
+    box-shadow: 0 4px 8px rgba(0,0,0,

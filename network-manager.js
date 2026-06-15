@@ -451,129 +451,80 @@ export function guestJoinRoom(targetRoomId, myName) {
         return;
     }
 
-    // 💡 既に古いPeerインスタンスが存在する場合は、完全に破棄（クリーンアップ）してから再生成する
-    if (peer) {
-        try {
-            peer.off("open");
-            peer.off("connection");
-            peer.off("error");
-            peer.destroy(); // 完全に通信ポートやセッションのゴミを解放
-            console.log("🧹 [DEBUG] 古いPeerインスタンスを正常にクリーンアップしました。");
-        } catch(e) {
-            console.error("Peerの破棄中にエラー:", e);
-        }
-        peer = null;
+    // 💡 script.js で既に作成されている完璧な通信枠（window.peer）をそのまま利用する
+    const activePeer = window.peer || peer; 
+    
+    if (!activePeer || activePeer.disconnected) {
+        alert("ネットワークの準備ができていません。ページを再読み込みしてください。");
+        return;
     }
 
-    // 💡 タイムアウト管理用のタイマー変数を定義
     let connectionTimeout = null;
+    setIsHost(false);
 
-    peer = new Peer(peerOptions);
+    game.log(`🏠 部屋 [ ${targetRoomId} ] へ接続を試みています...`);
+    console.log(`[DEBUG 1] ${targetRoomId} に向けて activePeer.connect() を実行します。`);
 
-    peer.on("open", (id) => {
-        window.myId = id;
-        setIsHost(false);
-        displayMyRoomId(id);
+    // 💡 ここで新しく作り直さず、既存の枠から直接コネクションを張る
+    const conn = activePeer.connect(targetRoomId);
+    setConnToHost(conn);
+    
+    console.log(`[DEBUG 2] conn オブジェクトの作成完了。`);
 
-        game.log(`🌐 シグナリングサーバに接続しました。ID: ${id}`);
-        game.log(`🏠 部屋 [ ${targetRoomId} ] へ接続を試みています...`);
+    // 🔥 3秒のセーフティタイマー（ホストがいない場合）
+    connectionTimeout = setTimeout(() => {
+        console.log(`[DEBUG ❌ TIMEOUT] 3秒間応答がありませんでした。`);
+        game.log("<b style='color: red;'>❌ 入室失敗: ホストから応答がありません。部屋がまだ作成されていないか、IDが間違っています。</b>");
+        
+        if (conn) {
+            try { conn.close(); } catch(e){}
+            setConnToHost(null);
+        }
+        updateUI(); 
+        alert("ホストの部屋が見つかりませんでした。ホストが部屋を作成したことを確認してから再度お試しください。");
+    }, 3000);
 
-        console.log(`[DEBUG 1] ${targetRoomId} に向けて peer.connect() を実行します。`);
-        const conn = peer.connect(targetRoomId);
-        setConnToHost(conn);
-        console.log(`[DEBUG 2] conn オブジェクトの作成完了。リスナーを登録します。現在の状態:`, conn);
+    // 接続成功時の処理
+    conn.on("open", () => {
+        console.log(`[DEBUG 3 🎉 OPEN] ホストとの双方向P2P通信が完全に開通しました！`);
+        
+        if (connectionTimeout) {
+            clearTimeout(connectionTimeout);
+            connectionTimeout = null;
+        }
 
-        // 🔥 【3秒のセーフティタイマーを起動】
-        // ホストが部屋を立てていない場合、3秒間 conn.on("open") が呼ばれないため、この中の処理が発動します。
-        connectionTimeout = setTimeout(() => {
-            console.log(`[DEBUG ❌ TIMEOUT] 3秒間、conn.on("open") が呼ばれませんでした。ホストが部屋を開いていない可能性が極めて高いです。`);
-            game.log("<b style='color: red;'>❌ 入室失敗: ホストから応答がありません。部屋がまだ作成されていないか、IDが間違っています。</b>");
-            
-            // 中途半端な接続試行を完全に遮断・クリーンアップ
-            if (conn) {
-                try { conn.close(); } catch(e){}
-                setConnToHost(null);
-            }
-            if (peer) {
-                try { peer.destroy(); } catch(e){}
-                peer = null;
-            }
-
-            // プレイヤーを初期画面（ロビー）に安全に追い出す
-            updateUI(); 
-            alert("ホストの部屋が見つかりませんでした。ホストが部屋を作成したことを確認してから再度お試しください。");
-        }, 3000); // 💡 3000ms ＝ 3秒（反応を早くしたい場合は 2000〜2500 に縮めてもOKです）
-
-        conn.on("open", () => {
-            console.log(`[DEBUG 3 🎉 OPEN] ホストとの双方向P2P通信（DataConnection）が完全に開通しました！`);
-            
-            // 💡 3秒以内に無事接続できたら、タイムアウトタイマーを解除する
-            if (connectionTimeout) {
-                clearTimeout(connectionTimeout);
-                connectionTimeout = null;
-            }
-
-            game.log("⚡ ホストとの接続が確立しました。入室リクエストを送ります。");
-            
-            conn.send(JSON.stringify({
-                type: "JOIN",
-                id: id,
-                name: myName || "ゲスト"
-            }));
-            console.log(`[DEBUG 4] ホストへ JOIN メッセージを送信しました。`);
-        });
-
-        conn.on("data", (data) => {
-            let parsedData = data;
-            if (typeof data === "string") {
-                try { parsedData = JSON.parse(data); } catch(e) {}
-            }
-            handleGuestReceiveData(parsedData);
-        });
-
-        conn.on("close", () => {
-            if (isMigrating) {
-                console.log("🛠️ ホスト移行中のため、一時的な切断を許容します。");
-                return;
-            }
-            game.log("❌ ホストとの接続が切断されました。");
-            setTimeout(() => { window.location.reload(); }, 1500);
-        });
-
-        conn.on("error", (err) => {
-            console.error("接続エラー:", err);
-            game.log("⚠️ ホストへの接続中にエラーが発生しました。");
-            
-            // エラーが発生した際もタイマーを解除
-            if (connectionTimeout) clearTimeout(connectionTimeout);
-        });
+        game.log("⚡ ホストとの接続が確立しました。入室リクエストを送ります。");
+        
+        // 💡 ここでもUUIDではなく、window.myId（8桁）を確実に送信する
+        conn.send(JSON.stringify({
+            type: "JOIN",
+            id: window.myId, 
+            name: myName || "ゲスト"
+        }));
+        console.log(`[DEBUG 4] ホストへ JOIN メッセージを送信しました。`);
     });
 
-    peer.on("error", (err) => {
-        console.error("PeerJSエラー (ゲスト):", err);
-        
-        // シグナリングサーバーから即座にエラーが返ってきた場合もタイマーを解除
-        if (connectionTimeout) clearTimeout(connectionTimeout);
-    
-        if (err.type === "peer-not-found" && !isMigrating) {
-            game.log("<b style='color: red;'>❌ 入室失敗: 指定された部屋（ホスト）が存在しません。部屋IDを確認してください。</b>");
-            
-            setIsHost(false);
-            if (connToHost) {
-                try { connToHost.close(); } catch(e){}
-                setConnToHost(null);
-            }
+    conn.on("data", (data) => {
+        let parsedData = data;
+        if (typeof data === "string") {
+            try { parsedData = JSON.parse(data); } catch(e) {}
+        }
+        handleGuestReceiveData(parsedData);
+    });
 
-            if (peer) {
-                try { peer.destroy(); } catch(e){}
-                peer = null;
-            }
-
-            updateUI(); 
-            alert("指定された部屋が見つかりませんでした。正しい部屋IDを入力するか、新しく部屋を作成してください。");
+    conn.on("close", () => {
+        if (isMigrating) {
+            console.log("🛠️ ホスト移行中のため、一時的な切断を許容します。");
             return;
         }
-        game.log(`⚠️ ネットワークエラー: ${err.type}`);
+        game.log("❌ ホストとの接続が切断されました。");
+        setTimeout(() => { window.location.reload(); }, 1500);
+    });
+
+    conn.on("error", (err) => {
+        console.error("接続エラー:", err);
+        game.log("⚠️ ホストへの接続中にエラーが発生しました。");
+        if (connectionTimeout) clearTimeout(connectionTimeout);
     });
 }
 

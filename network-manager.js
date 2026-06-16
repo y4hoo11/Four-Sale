@@ -10,6 +10,7 @@ export let peer = null;           // PeerJSインスタンス用
 
 // 移行中の意図的な切断時にリロードが暴発するのを防ぐフラグ
 let isMigrating = false;
+let isFirstSyncReceived = false;
 
 // F12デバッグ用：いつでもコンソールから game を確認できるようにグローバル化
 window.game = game;
@@ -215,7 +216,7 @@ export function handleGuestReceiveData(data) {
 
     if (data.type === "SYNC_STATE") {
         isFirstSyncReceived = true; // 同期完了をマーク
-
+        
         game.isGameStarted = data.gameState.isGameStarted;
         game.deck = data.gameState.deck;
         game.turnIndex = data.gameState.turnIndex;
@@ -324,9 +325,9 @@ function sendStateToSingleConnection(conn) {
         delete targetPlayerInGame.pendingSecretView;
     }
 
-    const payload = JSON.stringify({
+    const payload = {
         type: "SYNC_STATE",
-        rawPlayerList: rawPlayerList, 
+        rawPlayerList: rawPlayerList,
         gameState: {
             isGameStarted: game.isGameStarted,
             deck: game.deck,
@@ -357,7 +358,8 @@ function sendStateToSingleConnection(conn) {
     } catch (e) {
         console.error("送信エラー:", e);
     }
-    conn.send(payload);
+    // 確実に文字列として送信する（BinaryPackを通さない）
+    conn.send(JSON.stringify(payload));
 }
 
 // ホストから全ゲストへ状態をブロードキャスト

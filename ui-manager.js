@@ -1,20 +1,31 @@
 // ui-manager.js
 import { game } from "./game-logic.js";
-// 💡 不整合解決: connToHost を network-manager から直接インポート
 import { isHost, rawPlayerList, broadcastState, hostKickPlayer, hostTransferAuthority, hostRemoveDisconnectedPlayer, connToHost } from "./network-manager.js";
 
-// ホスト用：ゲーム開始
+// 現在選択されている入札用の追加コイン枚数
+let currentSelectedCoins = 0;
+
+// 物件の絵文字をNoごとに決定するヘルパー
+function getCardEmoji(val) {
+    if (val <= 5) return "🧻"; // トイレ・小屋
+    if (val <= 10) return "⛺"; // テント
+    if (val <= 15) return "🏠"; // 一般住宅
+    if (val <= 20) return "🏢"; // ビル
+    if (val <= 25) return "🏰"; // 城
+    return "🚀"; // 超豪華宇宙ステーション
+}
+
 export function hostStartGame() {
     if (!isHost) return;
     const success = game.initRound(rawPlayerList);
     if (success) {
         document.getElementById("start-game-btn").style.display = "none";
+        currentSelectedCoins = 0;
         broadcastState();
         updateUI();
     }
 }
 
-// ホスト用：次のラウンドへ
 export function hostNextRound() {
     if (!isHost) return;
     const currentScores = {};
@@ -28,43 +39,46 @@ export function hostNextRound() {
     if (success) {
         const nextBtn = document.getElementById("next-round-btn");
         if (nextBtn) nextBtn.style.display = "none";
+        currentSelectedCoins = 0;
         broadcastState();
         updateUI();
     }
 }
 
-// 画面全体の再描画（ゲスト側にもこの更新が走り同期されます）
 export function updateUI() {
     const setupContainer = document.getElementById("setup-container");
     const lobbyContainer = document.getElementById("lobby-container");
     const gameContainer = document.getElementById("game-container");
 
-    // 1. 画面コンテナの表示・非表示の排他制御
+    // 1. 画面表示の排他制御
     if (window.myId) { 
-        // 部屋に参加している場合
         setupContainer.style.display = "none";
         if (game.isGameStarted) {
-            // ゲーム中
             lobbyContainer.style.display = "none";
             gameContainer.style.display = "block";
         } else {
-            // ロビー待機中
             lobbyContainer.style.display = "block";
             gameContainer.style.display = "none";
         }
     } else {
-        // 部屋に入る前
         setupContainer.style.display = "block";
         lobbyContainer.style.display = "none";
         gameContainer.style.display = "none";
     }
 
-    // 2. 各種テキストやボタンの更新
-    const deckCountEl = document.getElementById("deck-count");
-    if (deckCountEl) {
-        deckCountEl.innerText = game.isGameStarted ? `山札: ${game.deck.length}枚 (${game.phase === "BID" ? "物件" : "小切手"})` : "山札: --枚";
+    // 2. 山札（残り枚数）の描画
+    const deckCountNum = document.getElementById("deck-count-num");
+    const deckPileVisual = document.getElementById("deck-pile-visual");
+    if (deckCountNum && deckPileVisual) {
+        if (game.isGameStarted) {
+            deckCountNum.innerText = game.deck.length;
+            deckPileVisual.style.background = game.phase === "BID" ? "linear-gradient(135deg, #27ae60, #2ecc71)" : "linear-gradient(135deg, #3498db, #2980b9)";
+        } else {
+            deckCountNum.innerText = "--";
+        }
     }
 
+    // 3. 上部ステータスバーのアクションテキスト
     const roleDisplayEl = document.getElementById("role-display");
     if (roleDisplayEl) {
         if (!game.isGameStarted) {
@@ -72,299 +86,349 @@ export function updateUI() {
         } else {
             const currentTurnPlayer = game.players[game.turnIndex];
             if (currentTurnPlayer) {
-                const phaseText = game.phase === "BID" ? "物件の競り" : "小切手売却";
-                roleDisplayEl.innerText = `【${phaseText}】手番: ${currentTurnPlayer.name}`;
+                if (currentTurnPlayer.id === window.myId) {
+                    roleDisplayEl.innerText = "あなたは行動を選んでください";
+                    roleDisplayEl.style.color = "#e74c3c";
+                } else {
+                    roleDisplayEl.innerText = `${currentTurnPlayer.name} の手番を待っています...`;
+                    roleDisplayEl.style.color = "#2c3e50";
+                }
             }
         }
     }
 
-    // ホスト用のゲーム開始ボタンの表示制御（ロビー側）
+    // 各種システム系管理ボタン
     const startBtn = document.getElementById("start-game-btn");
-    if (startBtn) {
-        startBtn.style.display = (isHost && !game.isGameStarted) ? "block" : "none";
-    }
-
-    const abortBtn = document.getElementById("abort-game-btn");
-    if (abortBtn) {
-        abortBtn.style.display = (isHost && game.isGameStarted) ? "block" : "none";
-    }
+    if (startBtn) startBtn.style.display = (isHost && !game.isGameStarted) ? "block" : "none";
 
     const nextRoundBtn = document.getElementById("next-round-btn");
     if (nextRoundBtn) {
         nextRoundBtn.style.display = (isHost && game.isGameStarted && typeof game.isGameEnded === "function" && game.isGameEnded()) ? "block" : "none";
     }
 
-    renderPlayerList();
-    renderMyHand();
-    renderTracker();
+    // 各種コンポーネントの専用描画
+    if (!game.isGameStarted) {
+        renderLobbyPlayerList();
+    } else {
+        renderSidePlayerList();
+        renderBidStatusBoard();
+        renderMarket();
+        renderConsoleAndHand();
+    }
+    
     renderCustomSettingsUI();
 
-    // 💡 ゲスト環境でのみ動作する、データの自動不整合（undefined）検知＆再送要求ロジック
+    // データの自動同期不整合検知（既存維持）
     if (!isHost && game.isGameStarted && game.players && game.players.length > 0) {
         const myGameData = game.players.find(p => p.id === window.myId);
         if (myGameData && myGameData.coins === undefined) {
-            console.warn("⚠️ 描画データに不整合（undefined）を検知。ホストに最新状態の再送を要求します...");
             if (connToHost && connToHost.open) {
-                connToHost.send(JSON.stringify({
-                    type: "REQUEST_SYNC",
-                    playerId: window.myId,
-                    playerName: myGameData.name
-                }));
+                connToHost.send(JSON.stringify({ type: "REQUEST_SYNC", playerId: window.myId, playerName: myGameData.name }));
             }
         }
     }
 }
 
-// プレイヤーリストのレンダリング
-function renderPlayerList() {
-    // ゲーム中かロビー中かで描画先のコンテナを切り替える
-    const targetId = game.isGameStarted ? "player-list" : "lobby-player-list";
-    const listEl = document.getElementById(targetId);
+/* ==========================================================================
+   📋 待機ロビー専用のリスト描画
+   ========================================================================== */
+function renderLobbyPlayerList() {
+    const listEl = document.getElementById("lobby-player-list");
     if (!listEl) return;
     listEl.innerHTML = "";
 
-    // もう一方のリストはクリアしておく
-    const otherId = game.isGameStarted ? "lobby-player-list" : "player-list";
-    const otherEl = document.getElementById(otherId);
-    if (otherEl) otherEl.innerHTML = "";
-
     rawPlayerList.forEach(p => {
         const item = document.createElement("div");
-        item.className = "player-item";
+        item.className = "lobby-player-item";
         
-        if (p.disconnected) {
-            item.classList.add("eliminated");
-        }
-
-        const pInGame = game.isGameStarted ? game.players.find(gp => gp.id === p.id) : null;
-
-        if (game.isGameStarted && pInGame) {
-            const currentTurnPlayer = game.players[game.turnIndex];
-            if (currentTurnPlayer && currentTurnPlayer.id === p.id) {
-                item.classList.add("active");
-            }
-        }
-
-        const header = document.createElement("div");
-        header.className = "player-header";
-
         const nameSpan = document.createElement("span");
         nameSpan.style.fontWeight = "bold";
-        
-        const statusText = p.disconnected ? " <span style='color:#e74c3c;'>[接続切れ]</span>" : "";
         const hostCrown = p.isHost ? "👑 " : "";
-        
-        let gameStatusInfo = "";
-        if (game.isGameStarted && pInGame) {
-            if (game.phase === "BID") {
-                gameStatusInfo = ` | 🪙${pInGame.coins}枚 (入札: ${pInGame.bid}枚)${pInGame.hasPassed ? " 🏳️パス済" : ""}`;
-            } else {
-                gameStatusInfo = ` | 💵獲得総額: $${pInGame.score || 0},000`;
-            }
-        }
+        nameSpan.innerHTML = `${hostCrown}${p.name} <span class="score-badge">${p.score || 0}勝</span>`;
+        item.appendChild(nameSpan);
 
-        nameSpan.innerHTML = `${hostCrown}${p.name}${statusText} <span class="score-badge">${p.score || 0}勝</span>${gameStatusInfo}`;
-        header.appendChild(nameSpan);
-
-        // ホスト用のキック・譲渡ボタン
         if (isHost && p.id !== window.myId) {
-            // 💡 修正：ボタンを横並びにするためのクラス `host-action-group` を適用
             const btnGroup = document.createElement("div");
             btnGroup.className = "host-action-group";
             
-            if (p.disconnected) {
-                const removeBtn = document.createElement("button");
-                removeBtn.className = "btn-danger";
-                removeBtn.innerText = "完全に削除";
-                removeBtn.style.background = "#95a5a6";
-                removeBtn.onclick = () => hostRemoveDisconnectedPlayer(p.id);
-                btnGroup.appendChild(removeBtn);
-            } else {
-                // 💡 修正：権限譲渡ボタン
-                const transBtn = document.createElement("button");
-                transBtn.className = "btn-host-transfer";
-                transBtn.innerText = "権限譲渡";
-                transBtn.onclick = () => hostTransferAuthority(p.id);
+            const transBtn = document.createElement("button");
+            transBtn.className = "btn-host-transfer";
+            transBtn.innerText = "権限譲渡";
+            transBtn.onclick = () => hostTransferAuthority(p.id);
 
-                // 💡 修正：キックボタンに赤色のクラス `btn-danger` を確実に付与
-                const kickBtn = document.createElement("button");
-                kickBtn.className = "btn-danger";
-                kickBtn.innerText = "キック";
-                kickBtn.onclick = () => hostKickPlayer(p.id);
-                
-                // 横一列に並ぶ順番で追加
-                btnGroup.appendChild(transBtn);
-                btnGroup.appendChild(kickBtn);
-            }
-            header.appendChild(btnGroup);
+            const kickBtn = document.createElement("button");
+            kickBtn.className = "btn-danger";
+            kickBtn.innerText = "キック";
+            kickBtn.onclick = () => hostKickPlayer(p.id);
+            
+            btnGroup.appendChild(transBtn);
+            btnGroup.appendChild(kickBtn);
+            item.appendChild(btnGroup);
         }
-        header.style.display = "flex";
-        header.style.justifyContent = "space-between";
-        header.style.alignItems = "center";
-        item.appendChild(header);
-
-        if (game.isGameStarted && p.id !== window.myId && pInGame) {
-            const handContainer = document.createElement("div");
-            handContainer.className = "enemy-hand-container";
-            handContainer.style.marginTop = "5px";
-            handContainer.style.display = "flex";
-            handContainer.style.gap = "5px";
-
-            if (game.phase === "BID") {
-                pInGame.hand.forEach((_, index) => {
-                    const cardBack = document.createElement("div");
-                    cardBack.className = "card-back-red";
-                    cardBack.style.width = "45px";
-                    cardBack.style.height = "30px";
-                    cardBack.style.fontSize = "0.65rem";
-                    cardBack.style.display = "flex";
-                    cardBack.style.justifyContent = "center";
-                    cardBack.style.alignItems = "center";
-                    cardBack.style.borderRadius = "4px";
-                    cardBack.style.border = "1px solid #fff";
-                    cardBack.style.background = "linear-gradient(135deg, #e74c3c, #c0392b)";
-                    cardBack.innerHTML = `<span style="color:#fff;">🏠物</span>`;
-                    handContainer.appendChild(cardBack);
-                });
-            } else {
-                if (pInGame.hasPassed && pInGame.bid > 0) {
-                    const cardHidden = document.createElement("div");
-                    cardHidden.style.background = "#2c3e50";
-                    cardHidden.style.color = "#fff";
-                    cardHidden.style.padding = "2px 6px";
-                    cardHidden.style.borderRadius = "4px";
-                    cardHidden.style.fontSize = "0.75rem";
-                    cardHidden.innerText = "🏠 物件提示済 (裏向き)";
-                    handContainer.appendChild(cardHidden);
-                }
-            }
-            item.appendChild(handContainer);
-        }
-
-        if (game.isGameStarted && pInGame && pInGame.history && pInGame.history.length > 0) {
-            const historyEl = document.createElement("div");
-            historyEl.className = "played-history";
-            historyEl.style.marginTop = "5px";
-            pInGame.history.forEach(val => {
-                const badge = document.createElement("span");
-                badge.style.background = "#34495e";
-                badge.style.color = "#fff";
-                badge.style.padding = "2px 6px";
-                badge.style.marginRight = "4px";
-                badge.style.borderRadius = "3px";
-                badge.style.fontSize = "0.75rem";
-                badge.innerText = `No.${val}`;
-                historyEl.appendChild(badge);
-            });
-            item.appendChild(historyEl);
-        }
-
         listEl.appendChild(item);
     });
 }
 
-// 自分の手札エリアの描画
-export function renderMyHand() {
-    const cardArea = document.getElementById("card-area");
-    const handTitle = document.getElementById("hand-title");
-    if (!cardArea) return;
-    cardArea.innerHTML = "";
+/* ==========================================================================
+   🎮 ゲーム中専用：右側サイドバーの縦並びプレイヤーリスト描画
+   ========================================================================== */
+function renderSidePlayerList() {
+    const sideEl = document.getElementById("game-side-players");
+    if (!sideEl) return;
+    sideEl.innerHTML = "";
 
-    if (!game.isGameStarted) {
-        if (handTitle) handTitle.style.display = "none";
+    rawPlayerList.forEach(p => {
+        const pInGame = game.players.find(gp => gp.id === p.id);
+        if (!pInGame) return;
+
+        const card = document.createElement("div");
+        card.className = "side-player-card";
+        
+        if (p.disconnected) card.classList.add("disconnected");
+        
+        const currentTurnPlayer = game.players[game.turnIndex];
+        if (currentTurnPlayer && currentTurnPlayer.id === p.id) {
+            card.classList.add("active-turn");
+        }
+
+        const hostCrown = p.isHost ? "👑 " : "";
+        const nameDiv = document.createElement("div");
+        nameDiv.className = "side-player-name";
+        nameDiv.innerHTML = `<span>${hostCrown}${p.name}</span> <span class="score-badge">${p.score || 0}勝</span>`;
+        card.appendChild(nameDiv);
+
+        // 各フェーズに応じたBGA風のパラメータ表示
+        const statsDiv = document.createElement("div");
+        statsDiv.className = "side-player-stats";
+        if (game.phase === "BID") {
+            // 競りフェーズ：現在のパス状況、保持コイン、入札値
+            const passedText = pInGame.hasPassed ? "🏳️ パス済" : "🔨 参戦中";
+            statsDiv.innerHTML = `<span>${passedText}</span> <span>🪙 ${pInGame.coins}k$</span>`;
+        } else {
+            // 売却フェーズ：現在の獲得総額
+            statsDiv.innerHTML = `<span>💵 獲得額: $${pInGame.score || 0},000</span>`;
+        }
+        card.appendChild(statsDiv);
+        sideEl.appendChild(card);
+    });
+}
+
+/* ==========================================================================
+   💬 ゲーム中専用：中央エリアの各人入札ログボックス
+   ========================================================================== */
+function renderBidStatusBoard() {
+    const boardEl = document.getElementById("bid-status-board");
+    if (!boardEl) return;
+    boardEl.innerHTML = "";
+
+    game.players.forEach(p => {
+        const box = document.createElement("div");
+        box.className = "bid-box";
+        if (p.id === window.myId) box.classList.add("current-player");
+
+        if (game.phase === "BID") {
+            const statusStr = p.hasPassed ? "<span style='color:#7f8c8d;'>(パスアウト)</span>" : "";
+            box.innerHTML = `<strong>${p.name}</strong> は入札した <span style='color:#e67e22; font-weight:bold;'>${p.bid || 0}</span> k$ ${statusStr}`;
+        } else {
+            const hasPlayed = p.hasPassed ? "🟢 提示完了" : "⏳ 選択中...";
+            box.innerHTML = `<strong>${p.name}</strong>: ${hasPlayed}`;
+        }
+        boardEl.appendChild(box);
+    });
+}
+
+/* ==========================================================================
+   🏢 ゲーム中専用：カードマーケット（場）の描画
+   ========================================================================== */
+function renderMarket() {
+    const listEl = document.getElementById("card-tracker-list");
+    const titleEl = document.getElementById("market-title-text");
+    if (!listEl) return;
+    listEl.innerHTML = "";
+
+    if (game.phase === "BID") {
+        if (titleEl) titleEl.innerText = "競売にかけられた物件";
+    } else {
+        if (titleEl) titleEl.innerText = "オープンされた小切手 (ドル札)";
+    }
+
+    if (!game.market || game.market.length === 0) {
+        listEl.innerHTML = "<p style='color:#7f8c8d;'>場にオープンされたカードはありません</p>";
         return;
     }
 
+    game.market.forEach(val => {
+        const card = document.createElement("div");
+        card.className = "game-card";
+        
+        if (game.phase === "BID") {
+            card.style.background = "#fff";
+            card.innerHTML = `
+                <div class="card-top-num">${val}</div>
+                <div class="card-illustration">${getCardEmoji(val)}</div>
+                <div class="card-bottom-num">${val}</div>
+            `;
+        } else {
+            card.style.background = "#d4efdf";
+            card.style.borderColor = "#27ae60";
+            card.innerHTML = `
+                <div class="card-top-num" style="color:#27ae60;">$${val}k</div>
+                <div class="card-illustration">💵</div>
+                <div class="card-bottom-num" style="color:#27ae60;">$${val}k</div>
+            `;
+        }
+        listEl.appendChild(card);
+    });
+}
+
+/* ==========================================================================
+   🕹️ ゲーム中専用：下部コンソールおよび手札（コイン丸ボタン・所持物件）
+   ========================================================================== */
+function renderConsoleAndHand() {
+    const consoleInfo = document.getElementById("console-info-text");
+    const cardArea = document.getElementById("card-area");
+    if (!cardArea) return;
+    cardArea.innerHTML = "";
+
     const me = game.players.find(p => p.id === window.myId);
     if (!me) return;
-
-    if (handTitle) {
-        handTitle.style.display = "block";
-        handTitle.innerText = game.phase === "BID" ? `あなたの所持金: 🪙 ${me.coins}枚` : "あなたの手札（所持物件）";
-    }
 
     const currentTurnPlayer = game.players[game.turnIndex];
     const isMyTurn = currentTurnPlayer && currentTurnPlayer.id === window.myId;
 
     if (game.phase === "BID") {
-        if (!isMyTurn || me.hasPassed) {
-            cardArea.innerHTML = `<p style="color:#7f8c8d;">他のプレイヤーの入札を待っています...</p>`;
+        // 現在の場の最高入札額
+        const currentHighest = Math.max(...game.players.map(p => Number(p.bid || 0)), 0);
+        const minNeed = currentHighest + 1;
+        
+        // 自分がすでに乗せている現在の入札額
+        const myCurrentBid = me.bid || 0;
+
+        if (consoleInfo) {
+            consoleInfo.innerHTML = `あなたの現在の入札値: <strong>${myCurrentBid}</strong> k$ | あなたの手持ちコイン: <strong>${me.coins}</strong> 枚 | 次に必要な最低値: <strong>${minNeed}</strong> k$`;
+        }
+
+        // 行動ボタンにイベントを直接アタッチ
+        const bidBtn = document.getElementById("submit-bid-btn");
+        const passBtn = document.getElementById("submit-pass-btn");
+
+        if (bidBtn && passBtn) {
+            if (isMyTurn && !me.hasPassed) {
+                bidBtn.disabled = false;
+                passBtn.disabled = false;
+                
+                // 入札実行ロジック
+                bidBtn.onclick = () => {
+                    if (currentSelectedCoins < minNeed) {
+                        alert(`入札額が足りません！最低 ${minNeed}k$ 以上になるようにコインを選んでください。`);
+                        return;
+                    }
+                    if (currentSelectedCoins > me.coins) {
+                        alert("手持ちのコイン以上の入札はできません。");
+                        return;
+                    }
+                    executePlayCard(currentSelectedCoins, {});
+                };
+
+                // パス実行ロジック
+                passBtn.onclick = () => {
+                    executePlayCard(-1, {});
+                };
+            } else {
+                bidBtn.disabled = true;
+                passBtn.disabled = true;
+            }
+        }
+
+        // コインセレクター丸ボタンのレンダリング
+        if (me.hasPassed) {
+            cardArea.innerHTML = "<p style='color:#7f8c8d;'>このラウンドはパスアウトしました。全員の競り終了を待っています...</p>";
             return;
         }
 
-        const currentHighest = game.players && game.players.length > 0 
-            ? Math.max(...game.players.map(p => Number(p.bid || 0))) 
-            : 0;
+        const coinContainer = document.createElement("div");
+        coinContainer.className = "coin-selector-container";
 
-        const minBid = currentHighest + 1;
-        
-        const bidContainer = document.createElement("div");
-        bidContainer.style.display = "flex";
-        bidContainer.style.gap = "10px";
-        bidContainer.style.alignItems = "center";
-        
-        bidContainer.innerHTML = `
-            <label>入札額 (現在最高: <span style="font-weight:bold; color:#e67e22;">${currentHighest}</span>):</label>
-            <input type="number" id="my-bid-input" value="${minBid}" min="${minBid}" max="${me.coins}" style="width:70px; padding:5px;">
-            <button id="submit-bid-btn" class="btn-success" style="padding:6px 12px; background:#2ecc71; color:#fff; border:none; border-radius:4px; cursor:pointer;">入札する</button>
-            <button id="submit-pass-btn" class="btn-danger" style="padding:6px 12px; background:#e74c3c; color:#fff; border:none; border-radius:4px; cursor:pointer;">パスする</button>
-        `;
-        cardArea.appendChild(bidContainer);
+        // 1から手持ちコイン最大値までのボタンを生成
+        for (let i = 1; i <= me.coins; i++) {
+            const coinBtn = document.createElement("div");
+            coinBtn.className = "coin-button";
+            coinBtn.innerText = `${i}\n1,000`;
+            
+            // 現在選択されている額と同じならハイライト
+            if (currentSelectedCoins === i) coinBtn.classList.add("selected");
+            
+            if (isMyTurn) {
+                coinBtn.onclick = () => {
+                    currentSelectedCoins = i;
+                    renderConsoleAndHand(); // 再描画してハイライトを更新
+                };
+            } else {
+                coinBtn.style.cursor = "not-allowed";
+                coinBtn.style.opacity = "0.7";
+            }
+            coinContainer.appendChild(coinBtn);
+        }
 
-        document.getElementById("submit-bid-btn").onclick = () => {
-            const amt = parseInt(document.getElementById("my-bid-input").value, 10) || 0;
-            executePlayCard(amt, {});
-        };
+        // デフォルトで最低金額にフォーカスを合わせる補助
+        if (currentSelectedCoins < minNeed && me.coins >= minNeed) {
+            currentSelectedCoins = minNeed;
+            // 限界を超える場合は持てる最大
+        } else if (currentSelectedCoins === 0 && me.coins > 0) {
+            currentSelectedCoins = Math.min(minNeed, me.coins);
+        }
 
-        document.getElementById("submit-pass-btn").onclick = () => {
-            executePlayCard(-1, {});
-        };
+        cardArea.appendChild(coinContainer);
 
     } else {
+        // 売却（小切手）フェーズ：手札の物件カードを並べる
+        if (consoleInfo) {
+            consoleInfo.innerHTML = "提示する物件カード（手札）を1枚選んで場に出してください。";
+        }
+
+        // 売却フェーズでは入札ボタンは不要
+        document.getElementById("submit-bid-btn").disabled = true;
+        document.getElementById("submit-pass-btn").disabled = true;
+
         if (me.hasPassed) {
-            cardArea.innerHTML = `<p style="color:#2ecc71;">物件を提示しました。全員のオープンを待っています...</p>`;
+            cardArea.innerHTML = "<p style='color:#2ecc71;'>物件を提示しました。全員のオープンを待っています...</p>";
             return;
         }
 
         me.hand.forEach((val) => {
             const card = document.createElement("div");
-            card.className = `card card-${val}`;
-            card.style.border = "2px solid #34495e";
-            card.style.padding = "10px";
-            card.style.borderRadius = "6px";
-            card.style.background = "#ecf0f1";
+            card.className = "game-card";
             card.style.display = "inline-block";
             card.style.margin = "5px";
-            card.style.width = "70px";
-            card.style.textAlign = "center";
+            card.style.background = "#fff";
             
             card.innerHTML = `
-                <div style="font-size:0.7rem; color:#7f8c8d;">🏢 物件</div>
-                <div class="card-num" style="font-size: 1.5rem; font-weight: bold; margin: 5px 0;">No.${val}</div>
+                <div class="card-top-num">${val}</div>
+                <div class="card-illustration">${getCardEmoji(val)}</div>
+                <div class="card-bottom-num">${val}</div>
             `;
 
             if (isMyTurn) {
                 card.onclick = () => {
-                    if(confirm(`物件 No.${val} を場に提示しますか？`)) {
+                    if (confirm(`物件 No.${val} を場に提示しますか？`)) {
                         executePlayCard(val, {});
                     }
                 };
                 card.style.cursor = "pointer";
-                card.style.opacity = "1.0";
+                card.style.transform = "hover: translateY(-5px)";
             } else {
                 card.style.cursor = "not-allowed";
-                card.style.opacity = "0.6";
+                card.style.opacity = "0.5";
             }
-
             cardArea.appendChild(card);
         });
     }
 }
 
-// データの送信処理
 function executePlayCard(actionValue, target) {
     if (isHost) {
         game.playCard(window.myId, actionValue, target);
+        currentSelectedCoins = 0; // 送信に成功したら選択をリセット
         broadcastState();
         updateUI();
     } else {
@@ -375,54 +439,14 @@ function executePlayCard(actionValue, target) {
                 actionValue: actionValue,
                 target: target
             }));
+            currentSelectedCoins = 0;
         }
     }
 }
 
-// フォーセールの場（マーケット）状況を表示
-function renderTracker() {
-    const listEl = document.getElementById("card-tracker-list");
-    if (!listEl) return;
-    listEl.innerHTML = "";
-
-    if (!game.isGameStarted || !game.market || game.market.length === 0) {
-        listEl.innerHTML = "<p style='color:#7f8c8d;'>現在、场にオープンされているカードはありません</p>";
-        return;
-    }
-
-    const title = document.createElement("h4");
-    title.innerText = game.phase === "BID" ? "🏢 現在競りに出されている物件" : "💵 現在オープンされている小切手";
-    title.style.margin = "0 0 10px 0";
-    listEl.appendChild(title);
-
-    const container = document.createElement("div");
-    container.style.display = "flex";
-    container.style.justifyContent = "center";
-    container.style.gap = "10px";
-
-    game.market.forEach(val => {
-        const item = document.createElement("div");
-        item.style.padding = "8px 16px";
-        item.style.borderRadius = "4px";
-        item.style.fontWeight = "bold";
-        item.style.fontSize = "1.2rem";
-
-        if (game.phase === "BID") {
-            item.style.background = "#e67e22";
-            item.style.color = "#fff";
-            item.innerText = `No.${val}`;
-        } else {
-            item.style.background = "#2ecc71";
-            item.style.color = "#fff";
-            item.innerText = `$${val},000`;
-        }
-        container.appendChild(item);
-    });
-
-    listEl.appendChild(container);
-}
-
-// ホスト用の設定UIをロビー向けにレンダリング
+/* ==========================================================================
+   ⚙️ カスタム設定UI（既存維持）
+   ========================================================================== */
 export function renderCustomSettingsUI() {
     const div = document.getElementById("integrated-custom-settings");
     if (!div) return;
@@ -450,7 +474,6 @@ export function renderCustomSettingsUI() {
                 <input type="number" id="cfg-custom-turns" value="${game.customTurns || 5}" min="2" max="15" ${disabledAttr} style="width:60px;">
             </div>
         </div>
-        <p style="font-size:0.75rem; color:#bdc3c7; margin-top:5px; margin-bottom:0;">※ターン数を増やすと、小切手は自動拡張されます。</p>
     `;
 
     if (isHost) {
@@ -468,30 +491,6 @@ export function renderCustomSettingsUI() {
     }
 }
 
-// 互換性維持用スタブ
 export function syncGuestSettingsUI(cardSettings, drawSettings) {}
 export function injectCustomSettingsUIIntoGame() {}
-
-// ホスト用：ゲーム強制中断ボタン
-export function injectAbortButton() {
-    const gameContainer = document.getElementById("game-container");
-    if (!gameContainer || document.getElementById("abort-game-btn")) return;
-
-    const btn = document.createElement("button");
-    btn.id = "abort-game-btn";
-    btn.innerText = "🛑 ゲームを強制中断して待機室に戻る";
-    btn.style.background = "#e74c3c";
-    btn.style.marginTop = "10px";
-    btn.style.display = isHost ? "block" : "none";
-    
-    btn.onclick = () => {
-        if (!isHost) return;
-        game.isGameStarted = false;
-        game.log("🛑 ホストによってゲームが強制中断されました。");
-        broadcastState();
-        updateUI();
-    };
-
-    const tracker = document.getElementById("card-tracker-container");
-    gameContainer.insertBefore(btn, tracker);
-}
+export function injectAbortButton() {}

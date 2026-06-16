@@ -369,16 +369,29 @@ export function hostKickPlayer(peerId) {
     handlePlayerDisconnect(peerId);
 }
 
-// ホスト用：「接続切れ」状態のプレイヤーを表示ごとリストから抹殺する
+// network-manager.js に追加してください
+
+/**
+ * 🗑️ ホスト用：「切断」状態のプレイヤーをルームから完全に削除する
+ * 削除後、最新のリストを全ゲストへ同期します。
+ */
 export function hostRemoveDisconnectedPlayer(peerId) {
     if (!isHost) return;
+
+    // 1. リストからターゲットを除外
     const target = rawPlayerList.find(p => p.id === peerId);
     if (target) {
-        game.log(`🗑️ ${target.name} のデータがルームから完全に削除されました。`);
+        game.log(`🗑️ ${target.name} のデータがルームから削除されました。`);
     }
+    
+    // フィルターでリストを更新
     rawPlayerList = rawPlayerList.filter(p => p.id !== peerId);
     
+    // 2. 削除後の最新状態を全員に通知する
+    // これにより、ゲスト側でも表示が同期され、リストから該当者が消えます
     broadcastState();
+    
+    // 3. ホスト自身のUIを更新
     updateUI();
 }
 
@@ -623,3 +636,4 @@ export function transferHostPrivilege(newHostId) {
         guestJoinRoom(newHostId, myName);
     }, 1500);
 }
+

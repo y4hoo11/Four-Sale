@@ -1,11 +1,11 @@
 // ui-manager.js
 import { game } from "./game-logic.js";
-import { isHost, rawPlayerList, broadcastState, hostKickPlayer, hostTransferAuthority, hostRemoveDisconnectedPlayer, connToHost } from "./network-manager.js";
+import { isHost, rawPlayerList, broadcastState, hostKickPlayer, hostTransferAuthority, connToHost } from "./network-manager.js";
 
 // 現在選択されている入札用の追加コイン枚数
 let currentSelectedCoins = 0;
 
-// ゲストがホストから最初のデータ同期を完了したかどうかのフラグ（チラつきバグ対策）
+// ゲストがホストから最初のデータ同期を完了したかどうかのフラグ
 let isFirstSyncReceived = false;
 
 // ゲスト側でデータを受信したときに呼び出す同期完了通知関数
@@ -39,10 +39,8 @@ export function hostAbortGame() {
     if (!isHost) return;
     if (!confirm("本当にゲームを強制終了して待機ロビーに戻りますか？\n現在の進行状況はリセットされます。")) return;
     
-    // ゲーム進行フラグをリセット
     game.isGameStarted = false;
     
-    // 各プレイヤーのゲーム内ステータス（パス状況など）を初期化
     if (game.players) {
         game.players.forEach(p => {
             p.bid = 0;
@@ -50,12 +48,10 @@ export function hostAbortGame() {
         });
     }
 
-    // ログに中断を記録
     if (typeof game.log === "function") {
         game.log("🛑 ホストによってゲームが強制終了されました。");
     }
 
-    // 全員に状態を配信して画面を更新
     broadcastState();
     updateUI();
 }
@@ -84,30 +80,31 @@ export function updateUI() {
     const lobbyContainer = document.getElementById("lobby-container");
     const gameContainer = document.getElementById("game-container");
 
-    // 1. 🛠️ 画面表示の排他制御（ゲストが最初に入った瞬間のチラつきバグを修正）
-    if (window.myId) { 
-        setupContainer.style.display = "none";
-        
-        // ゲストかつ、まだホストから初回の同期データが届いていない場合は強制的にロビーを表示
-        if (!isHost && !isFirstSyncReceived) {
-            lobbyContainer.style.display = "block";
-            gameContainer.style.display = "none";
-        } else {
-            // 通常通りのゲーム開始フラグによる分岐
-            if (game.isGameStarted) {
-                lobbyContainer.style.display = "none";
-                gameContainer.style.display = "block";
-            } else {
-                lobbyContainer.style.display = "block";
-                gameContainer.style.display = "none";
-            }
-        }
-    } else {
-        // まだログイン/部屋作成していない場合
+    // 0. 未ログイン状態（初期画面）
+    if (!window.myId) {
         setupContainer.style.display = "block";
         lobbyContainer.style.display = "none";
         gameContainer.style.display = "none";
-        isFirstSyncReceived = false; // 退出時はフラグをリセット
+        isFirstSyncReceived = false;
+        return;
+    }
+
+    // ログイン済み：セットアップ画面を隠す
+    setupContainer.style.display = "none";
+
+    // 1. 表示判定ロジック
+    // ゲストかつ初回同期前ならロビー固定、それ以外は game.isGameStarted で切り替え
+    if (!isHost && !isFirstSyncReceived) {
+        lobbyContainer.style.display = "block";
+        gameContainer.style.display = "none";
+    } else {
+        if (game.isGameStarted) {
+            lobbyContainer.style.display = "none";
+            gameContainer.style.display = "block";
+        } else {
+            lobbyContainer.style.display = "block";
+            gameContainer.style.display = "none";
+        }
     }
 
     // 2. 山札（残り枚数）の描画
@@ -122,11 +119,11 @@ export function updateUI() {
         }
     }
 
-    // 3. 上部ステータスバーのアクションテキスト
+    // 3. 上部ステータスバー
     const roleDisplayEl = document.getElementById("role-display");
     if (roleDisplayEl) {
         if (!game.isGameStarted) {
-            roleDisplayEl.innerText = isHost ? "👑 ホスト（待機中）" : "🟢 ゲスト（待機中）";
+            roleDisplayEl.innerText = isHost ? "👑 ホスト（待機中）" : "🟢 ゲスト（接続済み）";
         } else {
             const currentTurnPlayer = game.players[game.turnIndex];
             if (currentTurnPlayer) {
@@ -141,7 +138,7 @@ export function updateUI() {
         }
     }
 
-    // ホスト用システム管理ボタンの制御
+    // システムボタンの表示制御
     const startBtn = document.getElementById("start-game-btn");
     if (startBtn) startBtn.style.display = (isHost && !game.isGameStarted) ? "block" : "none";
 
@@ -150,13 +147,12 @@ export function updateUI() {
         nextRoundBtn.style.display = (isHost && game.isGameStarted && typeof game.isGameEnded === "function" && game.isGameEnded()) ? "block" : "none";
     }
 
-    // 👑 強制終了ボタンの表示制御（ホストかつゲーム中のみ表示）
     const abortBtn = document.getElementById("host-abort-btn");
     if (abortBtn) {
         abortBtn.style.display = (isHost && game.isGameStarted) ? "block" : "none";
     }
 
-    // 各種コンポーネントの専用描画
+    // 各エリアの描画
     if (!game.isGameStarted) {
         renderLobbyPlayerList();
     } else {
@@ -168,7 +164,7 @@ export function updateUI() {
     
     renderCustomSettingsUI();
 
-    // データの自動同期不整合検知
+    // 不整合検知による自動同期要求
     if (!isHost && game.isGameStarted && game.players && game.players.length > 0) {
         const myGameData = game.players.find(p => p.id === window.myId);
         if (myGameData && myGameData.coins === undefined) {
@@ -179,20 +175,15 @@ export function updateUI() {
     }
 }
 
-/* ==========================================================================
-   📋 待機ロビー専用のリスト描画
-   ========================================================================== */
 function renderLobbyPlayerList() {
     const listEl = document.getElementById("lobby-player-list");
     if (!listEl) return;
     listEl.innerHTML = "";
 
     rawPlayerList.forEach(p => {
-        // 各プレイヤーを囲む外枠コンテナ
         const item = document.createElement("div");
         item.className = "lobby-player-item";
         
-        // 左側：名前と勝数バッジ
         const nameGroup = document.createElement("div");
         nameGroup.className = "lobby-player-name-group";
         
@@ -209,7 +200,6 @@ function renderLobbyPlayerList() {
         nameGroup.appendChild(badge);
         item.appendChild(nameGroup);
 
-        // 右側：ホスト専用アクションボタン（名前の真横に並ぶ）
         if (isHost && p.id !== window.myId) {
             const btnGroup = document.createElement("div");
             btnGroup.className = "host-action-group";
@@ -232,9 +222,6 @@ function renderLobbyPlayerList() {
     });
 }
 
-/* ==========================================================================
-   🎮 ゲーム中専用：右側サイドバーの縦並びプレイヤーリスト描画
-   ========================================================================== */
 function renderSidePlayerList() {
     const sideEl = document.getElementById("game-side-players");
     if (!sideEl) return;
@@ -246,7 +233,6 @@ function renderSidePlayerList() {
 
         const card = document.createElement("div");
         card.className = "side-player-card";
-        
         if (p.disconnected) card.classList.add("disconnected");
         
         const currentTurnPlayer = game.players[game.turnIndex];
@@ -273,9 +259,6 @@ function renderSidePlayerList() {
     });
 }
 
-/* ==========================================================================
-   💬 ゲーム中専用：中央エリアの各人入札ログボックス
-   ========================================================================== */
 function renderBidStatusBoard() {
     const boardEl = document.getElementById("bid-status-board");
     if (!boardEl) return;
@@ -297,9 +280,6 @@ function renderBidStatusBoard() {
     });
 }
 
-/* ==========================================================================
-   🏢 ゲーム中専用：カードマーケット（場）の描画
-   ========================================================================== */
 function renderMarket() {
     const listEl = document.getElementById("card-tracker-list");
     const titleEl = document.getElementById("market-title-text");
@@ -341,9 +321,6 @@ function renderMarket() {
     });
 }
 
-/* ==========================================================================
-   🕹️ ゲーム中専用：下部コンソールおよび手札（コイン丸ボタン・所持物件）
-   ========================================================================== */
 function renderConsoleAndHand() {
     const consoleInfo = document.getElementById("console-info-text");
     const cardArea = document.getElementById("card-area");
@@ -372,7 +349,6 @@ function renderConsoleAndHand() {
             if (isMyTurn && !me.hasPassed) {
                 bidBtn.disabled = false;
                 passBtn.disabled = false;
-                
                 bidBtn.onclick = () => {
                     if (currentSelectedCoins < minNeed) {
                         alert(`入札額が足りません！最低 ${minNeed}k$ 以上になるようにコインを選んでください。`);
@@ -384,10 +360,7 @@ function renderConsoleAndHand() {
                     }
                     executePlayCard(currentSelectedCoins, {});
                 };
-
-                passBtn.onclick = () => {
-                    executePlayCard(-1, {});
-                };
+                passBtn.onclick = () => { executePlayCard(-1, {}); };
             } else {
                 bidBtn.disabled = true;
                 passBtn.disabled = true;
@@ -407,32 +380,18 @@ function renderConsoleAndHand() {
             coinBtn.className = "coin-btn";
             if (currentSelectedCoins === i) coinBtn.classList.add("active");
             coinBtn.innerHTML = `<span>${i}</span><span style="font-size:0.5rem;opacity:0.7;">k$</span>`;
-            
             if (isMyTurn) {
-                coinBtn.onclick = () => {
-                    currentSelectedCoins = i;
-                    renderConsoleAndHand();
-                };
+                coinBtn.onclick = () => { currentSelectedCoins = i; renderConsoleAndHand(); };
             } else {
                 coinBtn.style.cursor = "not-allowed";
                 coinBtn.style.opacity = "0.7";
             }
             coinContainer.appendChild(coinBtn);
         }
-
-        if (currentSelectedCoins < minNeed && me.coins >= minNeed) {
-            currentSelectedCoins = minNeed;
-        } else if (currentSelectedCoins === 0 && me.coins > 0) {
-            currentSelectedCoins = Math.min(minNeed, me.coins);
-        }
-
+        if (currentSelectedCoins < minNeed && me.coins >= minNeed) currentSelectedCoins = minNeed;
         cardArea.appendChild(coinContainer);
-
     } else {
-        if (consoleInfo) {
-            consoleInfo.innerHTML = "提示する物件カード（手札）を1枚選んで場に出してください。";
-        }
-
+        if (consoleInfo) consoleInfo.innerHTML = "提示する物件カード（手札）を1枚選んで場に出してください。";
         document.getElementById("submit-bid-btn").disabled = true;
         document.getElementById("submit-pass-btn").disabled = true;
 
@@ -447,19 +406,13 @@ function renderConsoleAndHand() {
             card.style.display = "inline-block";
             card.style.margin = "5px";
             card.style.background = "#fff";
-            
             card.innerHTML = `
                 <div class="card-top-num">${val}</div>
                 <div class="card-illustration">${getCardEmoji(val)}</div>
                 <div class="card-bottom-num">${val}</div>
             `;
-
             if (isMyTurn) {
-                card.onclick = () => {
-                    if (confirm(`物件 No.${val} を場に提示しますか？`)) {
-                        executePlayCard(val, {});
-                    }
-                };
+                card.onclick = () => { if (confirm(`物件 No.${val} を提示しますか？`)) executePlayCard(val, {}); };
                 card.style.cursor = "pointer";
             } else {
                 card.style.cursor = "not-allowed";
@@ -476,16 +429,14 @@ function executePlayCard(actionValue, target) {
         currentSelectedCoins = 0; 
         broadcastState();
         updateUI();
-    } else {
-        if (connToHost && connToHost.open) {
-            connToHost.send(JSON.stringify({
-                type: "ACTION",
-                playerId: window.myId,
-                actionValue: actionValue,
-                target: target
-            }));
-            currentSelectedCoins = 0;
-        }
+    } else if (connToHost && connToHost.open) {
+        connToHost.send(JSON.stringify({
+            type: "ACTION",
+            playerId: window.myId,
+            actionValue: actionValue,
+            target: target
+        }));
+        currentSelectedCoins = 0;
     }
 }
 
@@ -524,7 +475,6 @@ export function renderCustomSettingsUI() {
             broadcastState();
             updateUI();
         });
-
         document.getElementById("cfg-custom-turns")?.addEventListener("change", (e) => {
             game.customTurns = Math.max(2, parseInt(e.target.value) || 5);
             broadcastState();

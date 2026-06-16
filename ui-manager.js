@@ -258,52 +258,6 @@ function renderPlayerList() {
     });
 }
 
-// ホスト用の設定UIのレンダリング
-export function renderCustomSettingsUI() {
-    const div = document.getElementById("integrated-custom-settings");
-    if (!div) return;
-
-    if (!isHost) {
-        div.style.opacity = "0.5";
-        div.style.pointerEvents = "none";
-    } else {
-        div.style.opacity = "1.0";
-        div.style.pointerEvents = "auto";
-    }
-
-    const titleText = isHost ? "⚙️ ルームカスタム設定 (ホスト権限)" : "📋 現在のルームカスタム設定 (閲覧のみ)";
-    const disabledAttr = isHost ? "" : "disabled";
-
-    div.innerHTML = `
-        <h3 style="margin-top:0;">${titleText}</h3>
-        <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-top: 5px; border: 1px solid #f1c40f;">
-            <div class="setting-item" style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                <span>初期配布コイン枚数 (🪙):</span>
-                <input type="number" id="cfg-initial-coins" value="${game.initialCoins || 18}" min="5" max="30" ${disabledAttr} style="width:60px;">
-            </div>
-            <div class="setting-item" style="display:flex; justify-content:space-between;">
-                <span>1フェーズあたりのターン数:</span>
-                <input type="number" id="cfg-custom-turns" value="${game.customTurns || 5}" min="2" max="15" ${disabledAttr} style="width:60px;">
-            </div>
-        </div>
-        <p style="font-size:0.75rem; color:#bdc3c7; margin-top:5px; margin-bottom:0;">※ターン数を増やすと、小切手は自動拡張されます。</p>
-    `;
-
-    if (isHost) {
-        document.getElementById("cfg-initial-coins")?.addEventListener("change", (e) => {
-            game.initialCoins = Math.max(5, parseInt(e.target.value) || 18);
-            broadcastState();
-            updateUI();
-        });
-
-        document.getElementById("cfg-custom-turns")?.addEventListener("change", (e) => {
-            game.customTurns = Math.max(2, parseInt(e.target.value) || 5);
-            broadcastState();
-            updateUI();
-        });
-    }
-}
-
 // 自分の手札エリアの描画
 export function renderMyHand() {
     const cardArea = document.getElementById("card-area");
@@ -321,39 +275,34 @@ export function renderMyHand() {
 
     if (handTitle) {
         handTitle.style.display = "block";
-        // フェーズごとに手札の役割のテキストを変更
         handTitle.innerText = game.phase === "BID" ? `あなたの所持金: 🪙 ${me.coins}枚` : "あなたの手札（所持物件）";
     }
 
     const currentTurnPlayer = game.players[game.turnIndex];
     const isMyTurn = currentTurnPlayer && currentTurnPlayer.id === window.myId;
 
-    // 💰 フェーズ1：競りフェーズ
     if (game.phase === "BID") {
         if (!isMyTurn || me.hasPassed) {
             cardArea.innerHTML = `<p style="color:#7f8c8d;">他のプレイヤーの入札を待っています...</p>`;
             return;
         }
 
-        // 💡 解決策: game.highestBid 変数に依存せず、全プレイヤーの現在の入札額から最高額をリアルタイムに直接算出
         const currentHighest = game.players && game.players.length > 0 
             ? Math.max(...game.players.map(p => Number(p.bid || 0))) 
             : 0;
 
         const minBid = currentHighest + 1;
         
-        // 入札用簡易フォーム生成
         const bidContainer = document.createElement("div");
         bidContainer.style.display = "flex";
         bidContainer.style.gap = "10px";
         bidContainer.style.alignItems = "center";
-        bidContainer.style.width = "100%";
         
         bidContainer.innerHTML = `
-            <label style="font-size:0.9rem;">入札額 (最高: <span style="font-weight:bold; color:#e67e22;">${currentHighest}</span>):</label>
-            <input type="number" id="my-bid-input" value="${minBid}" min="${minBid}" max="${me.coins}" style="width:70px; padding:8px; margin-top:0;">
-            <button id="submit-bid-btn" style="width:auto; padding:8px 15px; background:#2ecc71; margin-top:0;">入札</button>
-            <button id="submit-pass-btn" class="btn-danger" style="width:auto; padding:8px 15px; margin-top:0;">パス</button>
+            <label>入札額 (現在最高: <span style="font-weight:bold; color:#e67e22;">${currentHighest}</span>):</label>
+            <input type="number" id="my-bid-input" value="${minBid}" min="${minBid}" max="${me.coins}" style="width:70px; padding:5px;">
+            <button id="submit-bid-btn" class="btn-success" style="padding:6px 12px; background:#2ecc71; color:#fff; border:none; border-radius:4px; cursor:pointer;">入札する</button>
+            <button id="submit-pass-btn" class="btn-danger" style="padding:6px 12px; background:#e74c3c; color:#fff; border:none; border-radius:4px; cursor:pointer;">パスする</button>
         `;
         cardArea.appendChild(bidContainer);
 
@@ -363,11 +312,10 @@ export function renderMyHand() {
         };
 
         document.getElementById("submit-pass-btn").onclick = () => {
-            executePlayCard(-1, {}); // -1 をパスのシグナルとする
+            executePlayCard(-1, {});
         };
 
     } else {
-        // 💵 フェーズ2：手札（物件カード）を出して小切手と交換する
         if (me.hasPassed) {
             cardArea.innerHTML = `<p style="color:#2ecc71;">物件を提示しました。全員のオープンを待っています...</p>`;
             return;
@@ -419,7 +367,7 @@ function executePlayCard(actionValue, target) {
             connToHost.send(JSON.stringify({
                 type: "ACTION",
                 playerId: window.myId,
-                actionValue: actionValue, // game-logicの引数名と統一
+                actionValue: actionValue,
                 target: target
             }));
         }
@@ -446,7 +394,6 @@ function renderTracker() {
     container.style.display = "flex";
     container.style.justifyContent = "center";
     container.style.gap = "10px";
-    container.style.flexWrap = "wrap";
 
     game.market.forEach(val => {
         const item = document.createElement("div");
@@ -470,19 +417,10 @@ function renderTracker() {
     listEl.appendChild(container);
 }
 
-// 💡 不整合クリーンアップ: ホスト用の設定UIをフォーセール（初期コイン/設定ターン数）向けに完全に刷新
+// ホスト用の設定UIをロビー向けにレンダリング
 export function renderCustomSettingsUI() {
-    const gameContainer = document.getElementById("game-container");
-    if (!gameContainer) return;
-
-    let div = document.getElementById("integrated-custom-settings");
-    if (!div) {
-        div = document.createElement("div");
-        div.id = "integrated-custom-settings";
-        div.className = "custom-card-settings";
-        const logBox = document.getElementById("log-box");
-        gameContainer.insertBefore(div, logBox);
-    }
+    const div = document.getElementById("integrated-custom-settings");
+    if (!div) return;
 
     if (!isHost) {
         div.style.opacity = "0.5";
@@ -496,18 +434,18 @@ export function renderCustomSettingsUI() {
     const disabledAttr = isHost ? "" : "disabled";
 
     div.innerHTML = `
-        <h3>${titleText}</h3>
-        <div style="background: rgba(0,0,0,0.05); padding: 10px; border-radius: 6px; margin-top: 5px; border: 1px solid #dcd1be;">
-            <div class="setting-item" style="display:flex; justify-content:space-between; margin-bottom:8px; align-items:center;">
+        <h3 style="margin-top:0;">${titleText}</h3>
+        <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-top: 5px; border: 1px solid #f1c40f;">
+            <div class="setting-item" style="display:flex; justify-content:space-between; margin-bottom:8px;">
                 <span>初期配布コイン枚数 (🪙):</span>
-                <input type="number" id="cfg-initial-coins" value="${game.initialCoins || 18}" min="5" max="30" ${disabledAttr} style="width:60px; padding:4px; margin-top:0;">
+                <input type="number" id="cfg-initial-coins" value="${game.initialCoins || 18}" min="5" max="30" ${disabledAttr} style="width:60px;">
             </div>
-            <div class="setting-item" style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="setting-item" style="display:flex; justify-content:space-between;">
                 <span>1フェーズあたりのターン数:</span>
-                <input type="number" id="cfg-custom-turns" value="${game.customTurns || 5}" min="2" max="15" ${disabledAttr} style="width:60px; padding:4px; margin-top:0;">
+                <input type="number" id="cfg-custom-turns" value="${game.customTurns || 5}" min="2" max="15" ${disabledAttr} style="width:60px;">
             </div>
         </div>
-        <p style="font-size:0.75rem; color:#7f8c8d; margin-top:5px;">※ターン数を増やすと、小切手は均等追加アルゴリズムによって自動拡張されます。</p>
+        <p style="font-size:0.75rem; color:#bdc3c7; margin-top:5px; margin-bottom:0;">※ターン数を増やすと、小切手は自動拡張されます。</p>
     `;
 
     if (isHost) {
@@ -549,10 +487,6 @@ export function injectAbortButton() {
         updateUI();
     };
 
-    const tracker = document.getElementById("card-tracker-list");
-    if (tracker) {
-        gameContainer.insertBefore(btn, tracker);
-    } else {
-        gameContainer.appendChild(btn);
-    }
+    const tracker = document.getElementById("card-tracker-container");
+    gameContainer.insertBefore(btn, tracker);
 }

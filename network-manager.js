@@ -424,7 +424,7 @@ export function leaveRoom() {
         });
     } else {
         if (connToHost && connToHost.open) {
-            connToHost.send(JSON.stringify({ type: "LEAVE" }));
+            connToHost.send({ type: "LEAVE" });
             connToHost.close();
         }
     }
@@ -544,11 +544,7 @@ export function guestJoinRoom(targetRoomId, myName) {
     });
 
     conn.on("data", (data) => {
-        let parsedData = data;
-        if (typeof data === "string") {
-            try { parsedData = JSON.parse(data); } catch(e) {}
-        }
-        handleGuestReceiveData(parsedData);
+        handleGuestReceiveData(data);
     });
 
     conn.on("close", () => {
@@ -605,7 +601,7 @@ export function transferHostPrivilege(newHostId) {
     const fullGameState = JSON.stringify(game);
 
     // 2. 全員に「ホスト移行通知」と「完全な生データ」をブロードキャスト
-    const payload = JSON.stringify({
+    const payload = {
         type: "HOST_MIGRATION",
         newHostId: newHostId,
         newHostName: targetName,
@@ -615,7 +611,7 @@ export function transferHostPrivilege(newHostId) {
             if (p.id === window.myId) p.isHost = false;
             return p;
         })
-    });
+    };
 
     isMigrating = true; // 自分自身もリロード抑止
 

@@ -16,6 +16,7 @@ window.game = game;
 
 // 💡 共通の接続安定化オプション（GoogleのパブリックSTUNサーバーを指定してタイムアウトを防ぐ）
 const peerOptions = {
+    serialization: 'none', // 💡 BinaryPackエラーを回避するため、送受信をJSON文字列に限定
     config: {
         'iceServers': [
             { url: 'stun:stun.l.google.com:19302' },
@@ -213,6 +214,8 @@ export function handleGuestReceiveData(data) {
     }
 
     if (data.type === "SYNC_STATE") {
+        isFirstSyncReceived = true; // 同期完了をマーク
+
         game.isGameStarted = data.gameState.isGameStarted;
         game.deck = data.gameState.deck;
         game.turnIndex = data.gameState.turnIndex;
@@ -348,6 +351,12 @@ function sendStateToSingleConnection(conn) {
         },
         secretView: secretViewData
     });
+    
+    try {
+        conn.send(JSON.stringify(payload));
+    } catch (e) {
+        console.error("送信エラー:", e);
+    }
     conn.send(payload);
 }
 

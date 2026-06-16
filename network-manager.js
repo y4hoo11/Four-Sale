@@ -347,19 +347,17 @@ function sendStateToSingleConnection(conn) {
                 coins: p.coins,
                 bid: p.bid,
                 hasPassed: p.hasPassed,
-                hand: (p.id === conn.peer) ? p.hand : p.hand.map(() => 0) // 💡 チート防止フィルター
+                hand: (p.id === conn.peer) ? p.hand : p.hand.map(() => 0)
             })) : []
         },
         secretView: secretViewData
-    });
-    
+    };
+
     try {
         conn.send(JSON.stringify(payload));
     } catch (e) {
         console.error("送信エラー:", e);
     }
-    // 確実に文字列として送信する（BinaryPackを通さない）
-    conn.send(JSON.stringify(payload));
 }
 
 // ホストから全ゲストへ状態をブロードキャスト

@@ -17,7 +17,7 @@ window.game = game;
 
 // 💡 共通の接続安定化オプション（GoogleのパブリックSTUNサーバーを指定してタイムアウトを防ぐ）
 const peerOptions = {
-    serialization: 'none', // 💡 BinaryPackエラーを回避するため、送受信をJSON文字列に限定
+    serialization: 'json', // 💡 'none' ではなく 'json' に変更
     config: {
         'iceServers': [
             { url: 'stun:stun.l.google.com:19302' },

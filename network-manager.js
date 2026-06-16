@@ -512,21 +512,14 @@ export function guestJoinRoom(targetRoomId, myName) {
             connectionTimeout = null;
         }
 
-        // 💡 接続に成功したこの瞬間に、ゲストの画面を「ゲーム画面」へパッと切り替える！
-        const setupContainer = document.getElementById("setup-container");
-        const gameContainer = document.getElementById("game-container");
-        if (setupContainer) setupContainer.style.display = "none";
-        if (gameContainer) gameContainer.style.display = "block";
-
-        game.log("⚡ ホストとの接続が確立しました。入室リクエストを送ります。");
+        // 💡 画面切り替えのロジックを削除（updateUI() での同期完了を待つため）
+        game.log("⚡ ホストとの接続が確立しました。入室リクエストを送ります...");
         
-        // 💡 ここでもUUIDではなく、window.myId（8桁）を確実に送信する
         conn.send(JSON.stringify({
             type: "JOIN",
             id: window.myId, 
             name: myName || "ゲスト"
         }));
-        console.log(`[DEBUG 4] ホストへ JOIN メッセージを送信しました。`);
     });
 
     conn.on("data", (data) => {

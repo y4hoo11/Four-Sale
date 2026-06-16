@@ -2,95 +2,212 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> 🏢 FOUR SALE </title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <title>フォーセール (For Sale) P2P</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        #my-peer-id {
-            cursor: pointer;
-            transition: opacity 0.2s;
-            display: inline-block;
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #f1c40f;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+        }
+        /* 🎨 ルームセットアップと待機ロビーで共通の背景色・スタイル */
+        .panel-container {
+            background-color: #34495e;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 500px;
+            box-sizing: border-box;
+        }
+        .input-group {
             margin-bottom: 15px;
         }
-        #my-peer-id:hover {
-            opacity: 0.7;
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 5px;
+        }
+        .btn-primary { background-color: #2ecc71; color: white; }
+        .btn-primary:hover { background-color: #27ae60; }
+        .btn-secondary { background-color: #3498db; color: white; }
+        .btn-secondary:hover { background-color: #2980b9; }
+        .btn-danger { background-color: #e74c3c; color: white; }
+        .btn-danger:hover { background-color: #c0392b; }
+        
+        /* 👑 権限譲渡ボタンのスタイル */
+        .btn-host-transfer {
+            background-color: #f1c40f;
+            color: #2c3e50;
+        }
+        .btn-host-transfer:hover {
+            background-color: #d4ac0d;
+        }
+
+        /* 💡 待機ロビーのヘッダー（テキストの右端に離脱ボタンを配置） */
+        .lobby-header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #2c3e50;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .lobby-header-container h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #f1c40f;
+        }
+        /* ロビーヘッダー内の離脱ボタンは幅を自動（小さめ）にする */
+        #lobby-leave-btn {
+            width: auto;
+            margin-top: 0;
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+
+        #game-container {
+            background-color: #34495e;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 800px;
+            display: none;
+        }
+        .player-item {
+            background-color: #2c3e50;
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            border-left: 5px solid #7f8c8d;
+        }
+        .player-item.active {
+            border-left-color: #2ecc71;
+            background-color: #243545;
+        }
+        .player-item.eliminated {
+            opacity: 0.5;
+            border-left-color: #e74c3c;
+        }
+        /* 💡 キックと譲渡ボタンを横一列に並べるためのグループ定義 */
+        .host-action-group {
+            display: flex;
+            gap: 5px;
+        }
+        .host-action-group button {
+            width: auto;
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            margin-top: 0;
+        }
+        .score-badge {
+            background-color: #f1c40f;
+            color: #2c3e50;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            margin-left: 5px;
+        }
+        #game-log {
+            background-color: #2c3e50;
+            padding: 10px;
+            border-radius: 4px;
+            height: 120px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.9rem;
+            border: 1px solid #7f8c8d;
+            margin-top: 15px;
         }
     </style>
 </head>
 <body>
 
-    <h1> 🏢 FOUR SALE </h1>
-    <div id="my-peer-id">部屋IDを取得中...</div>
+    <h1>🏢 FOR SALE (フォーセール)</h1>
+    <div id="my-peer-id" style="margin-bottom: 20px; font-weight: bold; background: #16a085; padding: 5px 15px; border-radius: 20px; cursor: pointer;">部屋IDを生成中...</div>
 
-    <div id="setup-container">
+    <div id="setup-container" class="panel-container">
         <h2>ルームセットアップ</h2>
         <div class="input-group">
-            <label for="name-input">あなたのプレイヤー名:</label>
-            <input type="text" id="name-input" value="プレイヤー" maxlength="10">
+            <label for="name-input">あなたの名前:</label>
+            <input type="text" id="name-input" value="プレイヤー">
         </div>
-
-        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #4f5d73;">
+        <button id="be-host-btn" class="btn-primary" style="margin-bottom: 15px;">🏠 新しい部屋を作る (ホスト)</button>
         
-        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-            <button id="be-host-btn">🏠 部屋を作る (ホスト)</button>
-        </div>
-
+        <hr style="border-color: #2c3e50; margin: 20px 0;">
+        
         <div class="input-group">
-            <label for="room-id-input">友達の部屋ID (数字8桁):</label>
-            <input type="text" id="room-id-input" placeholder="12345678" maxlength="8">
+            <label for="room-id-input">入室する部屋ID (8桁の数字):</label>
+            <input type="text" id="room-id-input" placeholder="例: 12345678" maxlength="8">
         </div>
-        <button id="join-room-btn" class="btn-secondary">🌐 部屋に入る (ゲスト)</button>
+        <button id="join-room-btn" class="btn-secondary">🌐 友達の部屋に入る (ゲスト)</button>
     </div>
 
-    <div id="lobby-container" style="display: none; width: 100%; max-width: 600px; box-sizing: border-box; background: #34495e; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); margin-bottom: 15px;">
-        <h2>👥 待機ロビー</h2>
+    <div id="lobby-container" class="panel-container" style="display: none;">
+        <div class="lobby-header-container">
+            <h2>📋 待機ロビー</h2>
+            <button id="lobby-leave-btn" class="btn-danger">部屋を離脱</button>
+        </div>
         
-        <div id="integrated-custom-settings"></div>
-
-        <h3 style="margin-top: 20px;">参加プレイヤー</h3>
-        <div class="player-list-container">
-            <div id="lobby-player-list"></div>
-        </div>
-
-        <button id="start-game-btn" style="display: none; margin-top: 15px;">🎮 ゲーム開始</button>
-        <button id="lobby-leave-btn" class="btn-danger" style="width: 100%; margin: 15px 0 0 0; padding: 12px; font-size: 1rem;">🚪 部屋を離脱</button>
+        <div id="integrated-custom-settings" style="margin-bottom: 20px;"></div>
+        
+        <h3>👥 参加プレイヤーリスト</h3>
+        <div id="lobby-player-list"></div>
+        
+        <button id="start-game-btn" class="btn-primary" style="display: none; margin-top: 20px; font-size: 1.2rem; padding: 15px;">🎮 ゲーム開始</button>
     </div>
 
-    <div id="game-container" style="display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <h2 style="margin:0;">ゲームボード</h2>
-            <button id="leave-room-btn">🚪 部屋を離脱</button>
+    <div id="game-container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 id="role-display" style="margin: 0; color: #f1c40f;">ゲーム画面</h2>
+            <div id="deck-count" style="font-weight: bold; background: #e67e22; padding: 5px 10px; border-radius: 4px;">山札: --枚</div>
         </div>
 
-        <div class="status-panel">
-            <span id="deck-count">山札: --枚</span>
-            <span id="role-display">🟢 待機中</span>
-        </div>
+        <div id="card-tracker-list" style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 6px; margin-bottom: 15px; text-align: center;"></div>
 
-        <div class="player-list-container">
-            <div id="player-list"></div>
-        </div>
+        <h3>👥 プレイヤーの状態</h3>
+        <div id="player-list"></div>
 
-        <div id="log-box"></div>
+        <h3 id="hand-title" style="margin-top: 20px;">あなたの手札</h3>
+        <div id="card-area" style="background: rgba(0,0,0,0.1); padding: 15px; border-radius: 6px; min-height: 60px;"></div>
 
-        <h3 id="hand-title" style="display: none; margin-bottom: 5px;">あなたの手札</h3>
-        <div id="card-area" class="card-area"></div>
+        <button id="next-round-btn" class="btn-primary" style="display: none; margin-top: 15px;">⏭️ 次のラウンドへ進む</button>
+        <button id="leave-room-btn" class="btn-danger" style="margin-top: 20px;">🚪 部屋を完全に離脱</button>
 
-        <button id="next-round-btn" style="display: none; background: #3498db;">🔄 次のラウンドへ</button>
-
-        <div id="card-tracker-container">
-            <h3 style="font-size: 0.9rem; margin-bottom: 8px;">📊 残りカードトラッカー</h3>
-            <div id="card-tracker-list"></div>
-        </div>
+        <h3>📜 ゲームログ</h3>
+        <div id="game-log"></div>
     </div>
 
-    <div id="target-modal" class="modal">
-        <div class="modal-content">
-            <div id="target-buttons"></div>
-        </div>
-    </div>
-
-    <script type="module" src="script.js"></script>
+    <script type="module" src="./script.js"></script>
 </body>
 </html>

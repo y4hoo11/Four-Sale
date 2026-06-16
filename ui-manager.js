@@ -168,7 +168,9 @@ function renderPlayerList() {
 
         // ホスト用のキック・譲渡ボタン
         if (isHost && p.id !== window.myId) {
+            // 💡 修正：ボタンを横並びにするためのクラス `host-action-group` を適用
             const btnGroup = document.createElement("div");
+            btnGroup.className = "host-action-group";
             
             if (p.disconnected) {
                 const removeBtn = document.createElement("button");
@@ -178,16 +180,19 @@ function renderPlayerList() {
                 removeBtn.onclick = () => hostRemoveDisconnectedPlayer(p.id);
                 btnGroup.appendChild(removeBtn);
             } else {
-                const kickBtn = document.createElement("button");
-                kickBtn.className = "btn-danger";
-                kickBtn.innerText = "キック";
-                kickBtn.onclick = () => hostKickPlayer(p.id);
-                
+                // 💡 修正：権限譲渡ボタン
                 const transBtn = document.createElement("button");
                 transBtn.className = "btn-host-transfer";
                 transBtn.innerText = "権限譲渡";
                 transBtn.onclick = () => hostTransferAuthority(p.id);
 
+                // 💡 修正：キックボタンに赤色のクラス `btn-danger` を確実に付与
+                const kickBtn = document.createElement("button");
+                kickBtn.className = "btn-danger";
+                kickBtn.innerText = "キック";
+                kickBtn.onclick = () => hostKickPlayer(p.id);
+                
+                // 横一列に並ぶ順番で追加
                 btnGroup.appendChild(transBtn);
                 btnGroup.appendChild(kickBtn);
             }
@@ -381,7 +386,7 @@ function renderTracker() {
     listEl.innerHTML = "";
 
     if (!game.isGameStarted || !game.market || game.market.length === 0) {
-        listEl.innerHTML = "<p style='color:#7f8c8d;'>現在、場にオープンされているカードはありません</p>";
+        listEl.innerHTML = "<p style='color:#7f8c8d;'>現在、场にオープンされているカードはありません</p>";
         return;
     }
 

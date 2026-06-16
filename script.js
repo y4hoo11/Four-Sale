@@ -53,9 +53,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("leave-room-btn")?.addEventListener("click", leaveRoom);
     document.getElementById("start-game-btn")?.addEventListener("click", hostStartGame);
     document.getElementById("next-round-btn")?.addEventListener("click", hostNextRound);
-
-    // 💡 追加：ロビー画面内の離脱ボタンも既存の離脱ロジックを呼び出すように紐付け
-    document.getElementById("lobby-leave-btn")?.addEventListener("click", leaveRoom);
 });
 
 // 👑 ホストとしての接続待ち受けを起動する共通関数
@@ -93,9 +90,8 @@ function beHost() {
     const initialList = [{ id: window.myId, name: window.myPlayerName, spectator: false, score: 0, isHost: true, disconnected: false }];
     setRawPlayerList(initialList);
 
-    // 💡 修正：部屋作成時は game-container ではなく lobby-container を表示させる（実際の管理は updateUI で行うため、ここでは表示切替の準備のみ）
     document.getElementById("setup-container").style.display = "none";
-    document.getElementById("lobby-container").style.display = "block";
+    document.getElementById("game-container").style.display = "block";
 
     import("./ui-manager.js").then(mod => {
         if (typeof mod.renderCustomSettingsUI === "function") mod.renderCustomSettingsUI();
@@ -103,7 +99,7 @@ function beHost() {
     });
     
     startHostListening();
-    updateUI(); // 💡 これにより、適切な待機状態のロビーがレンダリングされます
+    updateUI();
     game.log(`🏠 部屋を作成しました。部屋IDを友達に共有してください。`);
 }
 

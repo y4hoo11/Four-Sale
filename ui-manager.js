@@ -3,12 +3,29 @@ import { game } from "./game-logic.js";
 // 💡 不整合解決: connToHost を network-manager から直接インポート
 import { isHost, rawPlayerList, broadcastState, hostKickPlayer, hostTransferAuthority, hostRemoveDisconnectedPlayer, connToHost } from "./network-manager.js";
 
+// === 画面表示切り替え用関数 ===
+export function startGameUI() {
+    const setupContainer = document.getElementById("setup-container");
+    const gameContainer = document.getElementById("game-container");
+    if (setupContainer) setupContainer.style.display = "none";
+    if (gameContainer) gameContainer.style.display = "grid"; // CSS側のレイアウトに合わせてgridで展開
+}
+
+export function leaveGameUI() {
+    const setupContainer = document.getElementById("setup-container");
+    const gameContainer = document.getElementById("game-container");
+    if (gameContainer) gameContainer.style.display = "none";
+    if (setupContainer) setupContainer.style.display = "block";
+}
+
 // ホスト用：ゲーム開始
 export function hostStartGame() {
     if (!isHost) return;
     const success = game.initRound(rawPlayerList);
     if (success) {
-        document.getElementById("start-game-btn").style.display = "none";
+        const startBtn = document.getElementById("start-game-btn");
+        if (startBtn) startBtn.style.display = "none";
+        startGameUI(); // 画面をゲーム用に切り替え
         broadcastState();
         updateUI();
     }
@@ -35,6 +52,13 @@ export function hostNextRound() {
 
 // 画面全体の再描画（ゲスト側にもこの更新が走り同期されます）
 export function updateUI() {
+    // 同期状態に応じて、すでにゲーム中であれば画面を確実にゲーム側にする
+    if (game.isGameStarted) {
+        startGameUI();
+    } else {
+        leaveGameUI();
+    }
+
     const deckCountEl = document.getElementById("deck-count");
     if (deckCountEl) {
         deckCountEl.innerText = game.isGameStarted ? `山札: ${game.deck.length}枚 (${game.phase === "BID" ? "物件" : "小切手"})` : "山札: --枚";
@@ -73,11 +97,9 @@ export function updateUI() {
     renderTracker();
     renderCustomSettingsUI();
 
-    // 💡 追加：ゲスト環境でのみ動作する、データの自動不整合（undefined）検知＆再送要求ロジック
+    // 💡 追加：ゲスト環境でのデータの自動不整合（undefined）検知＆再送要求ロジック
     if (!isHost && game.isGameStarted && game.players && game.players.length > 0) {
-        // 自分自身のゲーム内データを取得
         const myGameData = game.players.find(p => p.id === window.myId);
-        // コイン枚数が届いていない（undefined）かチェック
         if (myGameData && myGameData.coins === undefined) {
             console.warn("⚠️ 描画データに不整合（undefined）を検知。ホストに最新状態の再送を要求します...");
             if (connToHost && connToHost.open) {
@@ -93,9 +115,12 @@ export function updateUI() {
 
 // プレイヤーリストのレンダリング
 function renderPlayerList() {
+    // 待機画面のリストとゲーム中のリストの双方へ状況を反映
     const listEl = document.getElementById("player-list");
-    if (!listEl) return;
-    listEl.innerHTML = "";
+    const lobbyListEl = document.getElementById("player-list-lobby");
+    
+    if (listEl) listEl.innerHTML = "";
+    if (lobbyListEl) lobbyListEl.innerHTML = game.isGameStarted ? "" : "<h3>現在の待機プレイヤー一覧:</h3>";
 
     rawPlayerList.forEach(p => {
         const item = document.createElement("div");
@@ -108,7 +133,6 @@ function renderPlayerList() {
         const pInGame = game.isGameStarted ? game.players.find(gp => gp.id === p.id) : null;
 
         if (game.isGameStarted && pInGame) {
-            // 現在の手番プレイヤーをハイライト
             const currentTurnPlayer = game.players[game.turnIndex];
             if (currentTurnPlayer && currentTurnPlayer.id === p.id) {
                 item.classList.add("active");
@@ -124,7 +148,6 @@ function renderPlayerList() {
         const statusText = p.disconnected ? " <span style='color:#e74c3c;'>[接続切れ]</span>" : "";
         const hostCrown = p.isHost ? "👑 " : "";
         
-        // 🪙 所持コインや入札額、獲得スコアの表示をフォーセール用に最適化
         let gameStatusInfo = "";
         if (game.isGameStarted && pInGame) {
             if (game.phase === "BID") {
@@ -178,8 +201,7 @@ function renderPlayerList() {
             handContainer.style.gap = "5px";
 
             if (game.phase === "BID") {
-                // 競りフェーズ：獲得した物件（手札）の枚数分、裏面を表示
-                pInGame.hand.forEach((_, index) => {
+                pInGame.hand.forEach(() => {
                     const cardBack = document.createElement("div");
                     cardBack.className = "card-back-red";
                     cardBack.style.width = "45px";
@@ -195,7 +217,6 @@ function renderPlayerList() {
                     handContainer.appendChild(cardBack);
                 });
             } else {
-                // 売却フェーズ：裏向きで提示した物件があるか、または既に獲得した小切手枚数を表示
                 if (pInGame.hasPassed && pInGame.bid > 0) {
                     const cardHidden = document.createElement("div");
                     cardHidden.style.background = "#2c3e50";
@@ -229,7 +250,13 @@ function renderPlayerList() {
             item.appendChild(historyEl);
         }
 
-        listEl.appendChild(item);
+        // ロビー状態かゲーム中状態かで描画先を振り分ける
+        if (game.isGameStarted && listEl) {
+            listEl.appendChild(item);
+        } else if (!game.isGameStarted && lobbyListEl) {
+            // ロビー時はシンプルな見た目にするためクローンしてボタン等の調整をしてもOK
+            lobbyListEl.appendChild(item);
+        }
     });
 }
 
@@ -250,7 +277,6 @@ export function renderMyHand() {
 
     if (handTitle) {
         handTitle.style.display = "block";
-        // フェーズごとに手札の役割のテキストを変更
         handTitle.innerText = game.phase === "BID" ? `あなたの所持金: 🪙 ${me.coins}枚` : "あなたの手札（所持物件）";
     }
 
@@ -264,14 +290,12 @@ export function renderMyHand() {
             return;
         }
 
-        // 💡 解決策: game.highestBid 変数に依存せず、全プレイヤーの現在の入札額から最高額をリアルタイムに直接算出
         const currentHighest = game.players && game.players.length > 0 
             ? Math.max(...game.players.map(p => Number(p.bid || 0))) 
             : 0;
 
         const minBid = currentHighest + 1;
         
-        // 入札用簡易フォーム生成
         const bidContainer = document.createElement("div");
         bidContainer.style.display = "flex";
         bidContainer.style.gap = "10px";
@@ -291,7 +315,7 @@ export function renderMyHand() {
         };
 
         document.getElementById("submit-pass-btn").onclick = () => {
-            executePlayCard(-1, {}); // -1 をパスのシグナルとする
+            executePlayCard(-1, {});
         };
 
     } else {
@@ -347,7 +371,7 @@ function executePlayCard(actionValue, target) {
             connToHost.send(JSON.stringify({
                 type: "ACTION",
                 playerId: window.myId,
-                actionValue: actionValue, // game-logicの引数名と統一
+                actionValue: actionValue,
                 target: target
             }));
         }
@@ -397,18 +421,24 @@ function renderTracker() {
     listEl.appendChild(container);
 }
 
-// 💡 不整合クリーンアップ: ホスト用の設定UIをフォーセール（初期コイン/設定ターン数）向けに完全に刷新
+// ルームカスタム設定UI
 export function renderCustomSettingsUI() {
-    const gameContainer = document.getElementById("game-container");
-    if (!gameContainer) return;
+    // 待機画面(#setup-container)内、またはゲーム画面内の適切な場所に挿入
+    const targetArea = document.getElementById("setup-container") || document.getElementById("game-container");
+    if (!targetArea) return;
 
     let div = document.getElementById("integrated-custom-settings");
     if (!div) {
         div = document.createElement("div");
         div.id = "integrated-custom-settings";
         div.className = "custom-card-settings";
-        const logBox = document.getElementById("log-box");
-        gameContainer.insertBefore(div, logBox);
+        // 待機画面がある場合はプレイヤーリストの手前に挿入
+        const lobbyList = document.getElementById("player-list-lobby");
+        if (lobbyList && targetArea.id === "setup-container") {
+            targetArea.insertBefore(div, lobbyList);
+        } else {
+            targetArea.appendChild(div);
+        }
     }
 
     if (!isHost) {
@@ -424,7 +454,7 @@ export function renderCustomSettingsUI() {
 
     div.innerHTML = `
         <h3>${titleText}</h3>
-        <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-top: 5px; border: 1px solid #f1c40f;">
+        <div style="background: rgba(0,0,0,0.05); padding: 10px; border-radius: 6px; margin-top: 5px; border: 1px solid #f1c40f; color: inherit;">
             <div class="setting-item" style="display:flex; justify-content:space-between; margin-bottom:8px;">
                 <span>初期配布コイン枚数 (🪙):</span>
                 <input type="number" id="cfg-initial-coins" value="${game.initialCoins || 18}" min="5" max="30" ${disabledAttr} style="width:60px;">
@@ -434,7 +464,6 @@ export function renderCustomSettingsUI() {
                 <input type="number" id="cfg-custom-turns" value="${game.customTurns || 5}" min="2" max="15" ${disabledAttr} style="width:60px;">
             </div>
         </div>
-        <p style="font-size:0.75rem; color:#bdc3c7; margin-top:5px;">※ターン数を増やすと、小切手は均等追加アルゴリズムによって自動拡張されます。</p>
     `;
 
     if (isHost) {
@@ -453,7 +482,7 @@ export function renderCustomSettingsUI() {
 }
 
 // 互換性維持用スタブ
-export function syncGuestSettingsUI(cardSettings, drawSettings) {}
+export function syncGuestSettingsUI() {}
 export function injectCustomSettingsUIIntoGame() {}
 
 // ホスト用：ゲーム強制中断ボタン
@@ -465,6 +494,12 @@ export function injectAbortButton() {
     btn.id = "abort-game-btn";
     btn.innerText = "🛑 ゲームを強制中断して待機室に戻る";
     btn.style.background = "#e74c3c";
+    btn.style.color = "#fff";
+    btn.style.border = "none";
+    btn.style.padding = "10px";
+    btn.style.borderRadius = "4px";
+    btn.style.cursor = "pointer";
+    btn.style.width = "100%;"
     btn.style.marginTop = "10px";
     btn.style.display = isHost ? "block" : "none";
     
@@ -473,9 +508,12 @@ export function injectAbortButton() {
         game.isGameStarted = false;
         game.log("🛑 ホストによってゲームが強制中断されました。");
         broadcastState();
+        leaveGameUI(); // 画面をルーム設定に戻す
         updateUI();
     };
 
-    const tracker = document.getElementById("card-tracker-container");
-    gameContainer.insertBefore(btn, tracker);
+    const sidebar = document.querySelector(".sidebar-column");
+    if (sidebar) {
+        sidebar.appendChild(btn);
+    }
 }

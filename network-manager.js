@@ -215,7 +215,13 @@ export function handleGuestReceiveData(data) {
     }
 
     if (data.type === "SYNC_STATE") {
+        //  【重要】受信した生のデータをまるごと出力
+        console.log("🔍 [DEBUG] ゲストが SYNC_STATE を受信しました:", data);
+
         isFirstSyncReceived = true; // 同期完了をマーク
+
+        // 更新前後の状態をログ出し
+        console.log("🔍 [DEBUG] 更新前の game.isGameStarted:", game.isGameStarted);
         
         game.isGameStarted = data.gameState.isGameStarted;
         game.deck = data.gameState.deck;
@@ -258,6 +264,8 @@ export function handleGuestReceiveData(data) {
                 window.activateHostMode();
             }
         }
+        
+        console.log("🔍 [DEBUG] 更新後の game.isGameStarted:", game.isGameStarted);
         
         updateUI();
     }

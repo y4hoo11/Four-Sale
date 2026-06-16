@@ -258,8 +258,6 @@ export function handleGuestReceiveData(data) {
                 window.activateHostMode();
             }
         }
-
-        markFirstSyncComplete();
         
         updateUI();
     }

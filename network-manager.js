@@ -354,7 +354,7 @@ function sendStateToSingleConnection(conn) {
     };
 
     try {
-        conn.send(JSON.stringify(payload));
+        conn.send(payload);
     } catch (e) {
         console.error("送信エラー:", e);
     }
@@ -534,14 +534,15 @@ export function guestJoinRoom(targetRoomId, myName) {
             connectionTimeout = null;
         }
 
-        // 💡 画面切り替えのロジックを削除（updateUI() での同期完了を待つため）
+        // 画面切り替えのロジックを削除（updateUI() での同期完了を待つため）
         game.log("⚡ ホストとの接続が確立しました。入室リクエストを送ります...");
         
-        conn.send(JSON.stringify({
+        // serialization: 'json' 設定時は、オブジェクトをそのまま送るだけでOK
+        conn.send({
             type: "JOIN",
             id: window.myId, 
             name: myName || "ゲスト"
-        }));
+        });
     });
 
     conn.on("data", (data) => {

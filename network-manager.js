@@ -255,6 +255,8 @@ export function handleGuestReceiveData(data) {
             }
         }
 
+        markFirstSyncComplete();
+        
         updateUI();
     }
 }

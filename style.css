@@ -167,7 +167,7 @@ button:active, .btn-sidebar:active {
 }
 
 /* ==========================================================================
-   👥 待機ロビー用レイアウト
+   👥 待機ロビー用レイアウト（ボタンを名前の真横に最適化）
    ========================================================================== */
 .lobby-header-container {
     display: flex;
@@ -181,16 +181,47 @@ button:active, .btn-sidebar:active {
     margin: 0;
 }
 
-/* ホストボタンを横並びにするグループ */
+/* ロビーのプレイヤー1人分の枠 */
+.lobby-player-item {
+    display: flex;
+    justify-content: space-between; /* 名前グループとボタングループを左右両端に */
+    align-items: center;            /* 縦方向の中央を揃える */
+    background: #f2f4f4;
+    padding: 10px 15px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    border: 1px solid #e5e8e8;
+    border-left: 5px solid #bdc3c7;
+}
+
+/* 名前と勝数バッジのグループ */
+.lobby-player-name-group {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* 名前とバッジの隙間 */
+}
+
+.lobby-player-name {
+    font-weight: bold;
+    color: #2c3e50;
+    font-size: 1rem;
+}
+
+/* 名前の真横に並ぶボタンのコンテナ */
 .host-action-group {
     display: flex;
-    gap: 6px;
+    gap: 6px; /* ボタン同士の隙間 */
+    align-items: center;
 }
-.host-action-group button {
-    width: auto;
-    padding: 5px 10px;
-    font-size: 0.8rem;
-    margin-top: 0;
+
+/* ロビー内のアクションボタン専用のコンパクト設定 */
+.lobby-action-btn {
+    width: auto !important;   /* 横幅いっぱいになるのを防ぐ */
+    padding: 6px 12px !important; /* ボタンを小さくスマートに */
+    font-size: 0.8rem !important;
+    margin-top: 0 !important; /* 余計な上の隙間をカット */
+    border-radius: 4px !important;
+    line-height: 1;
 }
 
 /* ==========================================================================
@@ -355,7 +386,7 @@ button:active, .btn-sidebar:active {
 }
 
 /* ==========================================================================
-   👥 プレイヤーリスト（サイドバーおよびロビー用アイテム）
+   👥 プレイヤーリスト（サイドバーゲーム中用コンテナ）
    ========================================================================== */
 .player-list-container {
     max-height: 350px;

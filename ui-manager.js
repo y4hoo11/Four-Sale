@@ -5,14 +5,22 @@ import { isHost, rawPlayerList, broadcastState, hostKickPlayer, hostTransferAuth
 // 現在選択されている入札用の追加コイン枚数
 let currentSelectedCoins = 0;
 
+// ゲストがホストから最初のデータ同期を完了したかどうかのフラグ（チラつきバグ対策）
+let isFirstSyncReceived = false;
+
+// ゲスト側でデータを受信したときに呼び出す同期完了通知関数
+export function markFirstSyncComplete() {
+    isFirstSyncReceived = true;
+}
+
 // 物件の絵文字をNoごとに決定するヘルパー
 function getCardEmoji(val) {
-    if (val <= 5) return "🧻"; // トイレ・小屋
-    if (val <= 10) return "⛺"; // テント
-    if (val <= 15) return "🏠"; // 一般住宅
-    if (val <= 20) return "🏢"; // ビル
-    if (val <= 25) return "🏰"; // 城
-    return "🚀"; // 超豪華宇宙ステーション
+    if (val <= 5) return "🧻"; 
+    if (val <= 10) return "⛺"; 
+    if (val <= 15) return "🏠"; 
+    if (val <= 20) return "🏢"; 
+    if (val <= 25) return "🏰"; 
+    return "🚀"; 
 }
 
 export function hostStartGame() {
@@ -24,6 +32,32 @@ export function hostStartGame() {
         broadcastState();
         updateUI();
     }
+}
+
+// 👑 ホスト専用：ゲームの強制終了（中断）処理
+export function hostAbortGame() {
+    if (!isHost) return;
+    if (!confirm("本当にゲームを強制終了して待機ロビーに戻りますか？\n現在の進行状況はリセットされます。")) return;
+    
+    // ゲーム進行フラグをリセット
+    game.isGameStarted = false;
+    
+    // 各プレイヤーのゲーム内ステータス（パス状況など）を初期化
+    if (game.players) {
+        game.players.forEach(p => {
+            p.bid = 0;
+            p.hasPassed = false;
+        });
+    }
+
+    // ログに中断を記録
+    if (typeof game.log === "function") {
+        game.log("🛑 ホストによってゲームが強制終了されました。");
+    }
+
+    // 全員に状態を配信して画面を更新
+    broadcastState();
+    updateUI();
 }
 
 export function hostNextRound() {
@@ -50,20 +84,30 @@ export function updateUI() {
     const lobbyContainer = document.getElementById("lobby-container");
     const gameContainer = document.getElementById("game-container");
 
-    // 1. 画面表示の排他制御
+    // 1. 🛠️ 画面表示の排他制御（ゲストが最初に入った瞬間のチラつきバグを修正）
     if (window.myId) { 
         setupContainer.style.display = "none";
-        if (game.isGameStarted) {
-            lobbyContainer.style.display = "none";
-            gameContainer.style.display = "block";
-        } else {
+        
+        // ゲストかつ、まだホストから初回の同期データが届いていない場合は強制的にロビーを表示
+        if (!isHost && !isFirstSyncReceived) {
             lobbyContainer.style.display = "block";
             gameContainer.style.display = "none";
+        } else {
+            // 通常通りのゲーム開始フラグによる分岐
+            if (game.isGameStarted) {
+                lobbyContainer.style.display = "none";
+                gameContainer.style.display = "block";
+            } else {
+                lobbyContainer.style.display = "block";
+                gameContainer.style.display = "none";
+            }
         }
     } else {
+        // まだログイン/部屋作成していない場合
         setupContainer.style.display = "block";
         lobbyContainer.style.display = "none";
         gameContainer.style.display = "none";
+        isFirstSyncReceived = false; // 退出時はフラグをリセット
     }
 
     // 2. 山札（残り枚数）の描画
@@ -97,13 +141,19 @@ export function updateUI() {
         }
     }
 
-    // 各種システム系管理ボタン
+    // ホスト用システム管理ボタンの制御
     const startBtn = document.getElementById("start-game-btn");
     if (startBtn) startBtn.style.display = (isHost && !game.isGameStarted) ? "block" : "none";
 
     const nextRoundBtn = document.getElementById("next-round-btn");
     if (nextRoundBtn) {
         nextRoundBtn.style.display = (isHost && game.isGameStarted && typeof game.isGameEnded === "function" && game.isGameEnded()) ? "block" : "none";
+    }
+
+    // 👑 強制終了ボタンの表示制御（ホストかつゲーム中のみ表示）
+    const abortBtn = document.getElementById("host-abort-btn");
+    if (abortBtn) {
+        abortBtn.style.display = (isHost && game.isGameStarted) ? "block" : "none";
     }
 
     // 各種コンポーネントの専用描画
@@ -118,7 +168,7 @@ export function updateUI() {
     
     renderCustomSettingsUI();
 
-    // データの自動同期不整合検知（既存維持）
+    // データの自動同期不整合検知
     if (!isHost && game.isGameStarted && game.players && game.players.length > 0) {
         const myGameData = game.players.find(p => p.id === window.myId);
         if (myGameData && myGameData.coins === undefined) {
@@ -138,26 +188,39 @@ function renderLobbyPlayerList() {
     listEl.innerHTML = "";
 
     rawPlayerList.forEach(p => {
+        // 各プレイヤーを囲む外枠コンテナ
         const item = document.createElement("div");
         item.className = "lobby-player-item";
         
+        // 左側：名前と勝数バッジ
+        const nameGroup = document.createElement("div");
+        nameGroup.className = "lobby-player-name-group";
+        
         const nameSpan = document.createElement("span");
-        nameSpan.style.fontWeight = "bold";
+        nameSpan.className = "lobby-player-name";
         const hostCrown = p.isHost ? "👑 " : "";
-        nameSpan.innerHTML = `${hostCrown}${p.name} <span class="score-badge">${p.score || 0}勝</span>`;
-        item.appendChild(nameSpan);
+        nameSpan.innerText = `${hostCrown}${p.name}`;
+        
+        const badge = document.createElement("span");
+        badge.className = "score-badge";
+        badge.innerText = `${p.score || 0}勝`;
+        
+        nameGroup.appendChild(nameSpan);
+        nameGroup.appendChild(badge);
+        item.appendChild(nameGroup);
 
+        // 右側：ホスト専用アクションボタン（名前の真横に並ぶ）
         if (isHost && p.id !== window.myId) {
             const btnGroup = document.createElement("div");
             btnGroup.className = "host-action-group";
             
             const transBtn = document.createElement("button");
-            transBtn.className = "btn-host-transfer";
+            transBtn.className = "btn-host-transfer lobby-action-btn";
             transBtn.innerText = "権限譲渡";
             transBtn.onclick = () => hostTransferAuthority(p.id);
 
             const kickBtn = document.createElement("button");
-            kickBtn.className = "btn-danger";
+            kickBtn.className = "btn-danger lobby-action-btn";
             kickBtn.innerText = "キック";
             kickBtn.onclick = () => hostKickPlayer(p.id);
             
@@ -197,15 +260,12 @@ function renderSidePlayerList() {
         nameDiv.innerHTML = `<span>${hostCrown}${p.name}</span> <span class="score-badge">${p.score || 0}勝</span>`;
         card.appendChild(nameDiv);
 
-        // 各フェーズに応じたBGA風のパラメータ表示
         const statsDiv = document.createElement("div");
         statsDiv.className = "side-player-stats";
         if (game.phase === "BID") {
-            // 競りフェーズ：現在のパス状況、保持コイン、入札値
             const passedText = pInGame.hasPassed ? "🏳️ パス済" : "🔨 参戦中";
             statsDiv.innerHTML = `<span>${passedText}</span> <span>🪙 ${pInGame.coins}k$</span>`;
         } else {
-            // 売却フェーズ：現在の獲得総額
             statsDiv.innerHTML = `<span>💵 獲得額: $${pInGame.score || 0},000</span>`;
         }
         card.appendChild(statsDiv);
@@ -297,18 +357,14 @@ function renderConsoleAndHand() {
     const isMyTurn = currentTurnPlayer && currentTurnPlayer.id === window.myId;
 
     if (game.phase === "BID") {
-        // 現在の場の最高入札額
         const currentHighest = Math.max(...game.players.map(p => Number(p.bid || 0)), 0);
         const minNeed = currentHighest + 1;
-        
-        // 自分がすでに乗せている現在の入札額
         const myCurrentBid = me.bid || 0;
 
         if (consoleInfo) {
             consoleInfo.innerHTML = `あなたの現在の入札値: <strong>${myCurrentBid}</strong> k$ | あなたの手持ちコイン: <strong>${me.coins}</strong> 枚 | 次に必要な最低値: <strong>${minNeed}</strong> k$`;
         }
 
-        // 行動ボタンにイベントを直接アタッチ
         const bidBtn = document.getElementById("submit-bid-btn");
         const passBtn = document.getElementById("submit-pass-btn");
 
@@ -317,7 +373,6 @@ function renderConsoleAndHand() {
                 bidBtn.disabled = false;
                 passBtn.disabled = false;
                 
-                // 入札実行ロジック
                 bidBtn.onclick = () => {
                     if (currentSelectedCoins < minNeed) {
                         alert(`入札額が足りません！最低 ${minNeed}k$ 以上になるようにコインを選んでください。`);
@@ -330,7 +385,6 @@ function renderConsoleAndHand() {
                     executePlayCard(currentSelectedCoins, {});
                 };
 
-                // パス実行ロジック
                 passBtn.onclick = () => {
                     executePlayCard(-1, {});
                 };
@@ -340,28 +394,24 @@ function renderConsoleAndHand() {
             }
         }
 
-        // コインセレクター丸ボタンのレンダリング
         if (me.hasPassed) {
             cardArea.innerHTML = "<p style='color:#7f8c8d;'>このラウンドはパスアウトしました。全員の競り終了を待っています...</p>";
             return;
         }
 
         const coinContainer = document.createElement("div");
-        coinContainer.className = "coin-selector-container";
+        coinContainer.className = "coin-buttons";
 
-        // 1から手持ちコイン最大値までのボタンを生成
         for (let i = 1; i <= me.coins; i++) {
             const coinBtn = document.createElement("div");
-            coinBtn.className = "coin-button";
-            coinBtn.innerText = `${i}\n1,000`;
-            
-            // 現在選択されている額と同じならハイライト
-            if (currentSelectedCoins === i) coinBtn.classList.add("selected");
+            coinBtn.className = "coin-btn";
+            if (currentSelectedCoins === i) coinBtn.classList.add("active");
+            coinBtn.innerHTML = `<span>${i}</span><span style="font-size:0.5rem;opacity:0.7;">k$</span>`;
             
             if (isMyTurn) {
                 coinBtn.onclick = () => {
                     currentSelectedCoins = i;
-                    renderConsoleAndHand(); // 再描画してハイライトを更新
+                    renderConsoleAndHand();
                 };
             } else {
                 coinBtn.style.cursor = "not-allowed";
@@ -370,10 +420,8 @@ function renderConsoleAndHand() {
             coinContainer.appendChild(coinBtn);
         }
 
-        // デフォルトで最低金額にフォーカスを合わせる補助
         if (currentSelectedCoins < minNeed && me.coins >= minNeed) {
             currentSelectedCoins = minNeed;
-            // 限界を超える場合は持てる最大
         } else if (currentSelectedCoins === 0 && me.coins > 0) {
             currentSelectedCoins = Math.min(minNeed, me.coins);
         }
@@ -381,12 +429,10 @@ function renderConsoleAndHand() {
         cardArea.appendChild(coinContainer);
 
     } else {
-        // 売却（小切手）フェーズ：手札の物件カードを並べる
         if (consoleInfo) {
             consoleInfo.innerHTML = "提示する物件カード（手札）を1枚選んで場に出してください。";
         }
 
-        // 売却フェーズでは入札ボタンは不要
         document.getElementById("submit-bid-btn").disabled = true;
         document.getElementById("submit-pass-btn").disabled = true;
 
@@ -397,7 +443,7 @@ function renderConsoleAndHand() {
 
         me.hand.forEach((val) => {
             const card = document.createElement("div");
-            card.className = "game-card";
+            card.className = "card";
             card.style.display = "inline-block";
             card.style.margin = "5px";
             card.style.background = "#fff";
@@ -415,7 +461,6 @@ function renderConsoleAndHand() {
                     }
                 };
                 card.style.cursor = "pointer";
-                card.style.transform = "hover: translateY(-5px)";
             } else {
                 card.style.cursor = "not-allowed";
                 card.style.opacity = "0.5";
@@ -428,7 +473,7 @@ function renderConsoleAndHand() {
 function executePlayCard(actionValue, target) {
     if (isHost) {
         game.playCard(window.myId, actionValue, target);
-        currentSelectedCoins = 0; // 送信に成功したら選択をリセット
+        currentSelectedCoins = 0; 
         broadcastState();
         updateUI();
     } else {
@@ -444,9 +489,6 @@ function executePlayCard(actionValue, target) {
     }
 }
 
-/* ==========================================================================
-   ⚙️ カスタム設定UI（既存維持）
-   ========================================================================== */
 export function renderCustomSettingsUI() {
     const div = document.getElementById("integrated-custom-settings");
     if (!div) return;
@@ -464,14 +506,14 @@ export function renderCustomSettingsUI() {
 
     div.innerHTML = `
         <h3 style="margin-top:0;">${titleText}</h3>
-        <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-top: 5px; border: 1px solid #f1c40f;">
+        <div style="background: rgba(0,0,0,0.03); padding: 10px; border-radius: 6px; margin-top: 5px; border: 1px solid #dcd1be;">
             <div class="setting-item" style="display:flex; justify-content:space-between; margin-bottom:8px;">
                 <span>初期配布コイン枚数 (🪙):</span>
-                <input type="number" id="cfg-initial-coins" value="${game.initialCoins || 18}" min="5" max="30" ${disabledAttr} style="width:60px;">
+                <input type="number" id="cfg-initial-coins" value="${game.initialCoins || 18}" min="5" max="30" ${disabledAttr} style="width:60px; padding:4px;">
             </div>
             <div class="setting-item" style="display:flex; justify-content:space-between;">
                 <span>1フェーズあたりのターン数:</span>
-                <input type="number" id="cfg-custom-turns" value="${game.customTurns || 5}" min="2" max="15" ${disabledAttr} style="width:60px;">
+                <input type="number" id="cfg-custom-turns" value="${game.customTurns || 5}" min="2" max="15" ${disabledAttr} style="width:60px; padding:4px;">
             </div>
         </div>
     `;

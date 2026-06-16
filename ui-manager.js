@@ -80,24 +80,25 @@ export function updateUI() {
     const lobbyContainer = document.getElementById("lobby-container");
     const gameContainer = document.getElementById("game-container");
 
-    // 0. 未ログイン状態（初期画面）
+    // 0. まだ自分のID（ログイン情報）がない場合は初期画面
     if (!window.myId) {
         setupContainer.style.display = "block";
         lobbyContainer.style.display = "none";
         gameContainer.style.display = "none";
-        isFirstSyncReceived = false;
         return;
     }
 
     // ログイン済み：セットアップ画面を隠す
     setupContainer.style.display = "none";
 
-    // 1. 表示判定ロジック
-    // ゲストかつ初回同期前ならロビー固定、それ以外は game.isGameStarted で切り替え
+    // 1. 画面表示の排他制御
+    // ゲストの場合：初回同期データが届くまではロビー画面を維持（チラつき防止）
+    // ホストの場合：常に現状のゲームステータスに従う
     if (!isHost && !isFirstSyncReceived) {
         lobbyContainer.style.display = "block";
         gameContainer.style.display = "none";
     } else {
+        // ホスト、または初回同期済みゲストの場合
         if (game.isGameStarted) {
             lobbyContainer.style.display = "none";
             gameContainer.style.display = "block";
@@ -123,7 +124,7 @@ export function updateUI() {
     const roleDisplayEl = document.getElementById("role-display");
     if (roleDisplayEl) {
         if (!game.isGameStarted) {
-            roleDisplayEl.innerText = isHost ? "👑 ホスト（待機中）" : "🟢 ゲスト（接続済み）";
+            roleDisplayEl.innerText = isHost ? "👑 ホスト（待機中）" : "🟢 ゲスト（接続済み・待機中）";
         } else {
             const currentTurnPlayer = game.players[game.turnIndex];
             if (currentTurnPlayer) {
@@ -152,7 +153,7 @@ export function updateUI() {
         abortBtn.style.display = (isHost && game.isGameStarted) ? "block" : "none";
     }
 
-    // 各エリアの描画
+    // 4. 各エリアの描画（ゲームの状態に応じて出し分け）
     if (!game.isGameStarted) {
         renderLobbyPlayerList();
     } else {
@@ -164,12 +165,16 @@ export function updateUI() {
     
     renderCustomSettingsUI();
 
-    // 不整合検知による自動同期要求
+    // 5. データ不整合検知による自動同期要求（ゲスト用）
     if (!isHost && game.isGameStarted && game.players && game.players.length > 0) {
         const myGameData = game.players.find(p => p.id === window.myId);
         if (myGameData && myGameData.coins === undefined) {
             if (connToHost && connToHost.open) {
-                connToHost.send(JSON.stringify({ type: "REQUEST_SYNC", playerId: window.myId, playerName: myGameData.name }));
+                connToHost.send(JSON.stringify({ 
+                    type: "REQUEST_SYNC", 
+                    playerId: window.myId, 
+                    playerName: myGameData.name 
+                }));
             }
         }
     }

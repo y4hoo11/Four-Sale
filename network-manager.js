@@ -124,17 +124,23 @@ export function handleHostReceiveData(conn, data) {
 export function handleGuestReceiveData(data) {
     if (isHost) return;
 
-    // 💡 【超重要デバッグログ】ホストから届いた生のデータをそのまま丸裸にする
-    console.log("=========================================");
-    console.log("📥 【受信デバッグ】ホストから生のパケットが届きました！");
-    console.log("パケット全体の構造:", data);
-    if (data && data.gameState) {
-        console.log("ホストから届いた gameState:", data.gameState);
-        console.log("ホストから届いた gameState.players の中身:", data.gameState.players);
+    // 🔬 【ゲスト側・受信直後デバッグ】
+    console.log("=== 📥 [GUEST INPUT] ホストからパケットが物理的に届きました ===");
+    console.log("届いたデータの型:", typeof data);
+    console.log("データ全体のプロパティ一覧:", data ? Object.keys(data) : "null/undefined");
+    
+    if (data) {
+        console.log("1. data.type の値:", data.type);
+        console.log("2. data.rawPlayerList の中身:", data.rawPlayerList);
+        
+        if (data.gameState) {
+            console.log("3. data.gameState のプロパティ一覧:", Object.keys(data.gameState));
+            console.log("4. data.gameState.players の生の値:", data.gameState.players);
+        } else {
+            console.log("🚨 警告: data.gameState 自体が存在しません！");
+        }
     }
-    console.log("ホストから届いた rawPlayerList の中身:", data ? data.rawPlayerList : "なし");
-    console.log("=========================================");
-
+    console.log("=========================================================");
     // 💡 ホスト移行命令（HOST_MIGRATION）を受信した場合の処理
     if (data.type === "HOST_MIGRATION") {
         game.log(`🔄 ホストが ${data.newHostName || "新しいホスト"} に移行されます。ネットワークを再構築中...`);

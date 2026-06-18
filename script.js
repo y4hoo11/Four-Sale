@@ -20,6 +20,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // グローバルに1つだけ生成（UUID化を防ぐ）
     window.peer = new Peer(randomId, peerOptions);
+    
+    // 🔬 【原因特定ログ】window.myId の書き換えを常時監視する
+    let _myId = randomId;
+    Object.defineProperty(window, 'myId', {
+        get() { return _myId; },
+        set(newVal) {
+            console.error(`🚨【警告】window.myId が ${_myId} から ${newVal} に上書きされました！`);
+            console.trace("書き換えた犯人の追跡 (Trace):");
+            _myId = newVal;
+        },
+        configurable: true
+    });
+    
     window.myId = randomId;
 
     // シグナリングサーバーへの接続成功時

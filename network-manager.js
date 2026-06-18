@@ -419,11 +419,21 @@ function sendStateToSingleConnection(conn) {
         secretView: secretViewData
     };
 
+    console.log("=== 📤 [HOST OUPUT] ゲストへ送信する直前のパケット ===");
+    console.log("送信先 PeerID:", conn.peer);
+    console.log("パケット全体:", payload);
+    if (payload && payload.gameState) {
+        console.log("送信直前の gameState.players:", payload.gameState.players);
+        console.log("送信直前の gameState.players の型/配列か?:", Array.isArray(payload.gameState.players));
+    }
+    console.log("=================================================");
+
     try {
         conn.send(payload);
     } catch (e) {
         console.error("送信エラー:", e);
     }
+}
 }
 
 // ホストから全ゲストへ状態をブロードキャスト

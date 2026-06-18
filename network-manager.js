@@ -440,7 +440,6 @@ function sendStateToSingleConnection(conn) {
         console.error("送信エラー:", e);
     }
 }
-}
 
 // ホストから全ゲストへ状態をブロードキャスト
 export function broadcastState() {

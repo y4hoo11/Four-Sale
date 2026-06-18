@@ -124,6 +124,17 @@ export function handleHostReceiveData(conn, data) {
 export function handleGuestReceiveData(data) {
     if (isHost) return;
 
+    // 💡 【超重要デバッグログ】ホストから届いた生のデータをそのまま丸裸にする
+    console.log("=========================================");
+    console.log("📥 【受信デバッグ】ホストから生のパケットが届きました！");
+    console.log("パケット全体の構造:", data);
+    if (data && data.gameState) {
+        console.log("ホストから届いた gameState:", data.gameState);
+        console.log("ホストから届いた gameState.players の中身:", data.gameState.players);
+    }
+    console.log("ホストから届いた rawPlayerList の中身:", data ? data.rawPlayerList : "なし");
+    console.log("=========================================");
+
     // 💡 ホスト移行命令（HOST_MIGRATION）を受信した場合の処理
     if (data.type === "HOST_MIGRATION") {
         game.log(`🔄 ホストが ${data.newHostName || "新しいホスト"} に移行されます。ネットワークを再構築中...`);

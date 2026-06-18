@@ -27,7 +27,8 @@ export function hostStartGame() {
     if (!isHost) return;
     const success = game.initRound(rawPlayerList);
     if (success) {
-        document.getElementById("start-game-btn").style.display = "none";
+        const startBtn = document.getElementById("start-game-btn");
+        if (startBtn) startBtn.style.display = "none";
         currentSelectedCoins = 0;
         broadcastState();
         updateUI();
@@ -82,29 +83,28 @@ export function updateUI() {
 
     // 0. まだ自分のID（ログイン情報）がない場合は初期画面
     if (!window.myId) {
-        setupContainer.style.display = "block";
-        lobbyContainer.style.display = "none";
-        gameContainer.style.display = "none";
+        if (setupContainer) setupContainer.style.display = "block";
+        if (lobbyContainer) lobbyContainer.style.display = "none";
+        if (gameContainer) gameContainer.style.display = "none";
         return;
     }
 
     // ログイン済み：セットアップ画面を隠す
-    setupContainer.style.display = "none";
+    if (setupContainer) setupContainer.style.display = "none";
 
-    // 1. 画面表示の排他制御
+    // 1. 画面表示の排た制御
     // ゲストの場合：初回同期データが届くまではロビー画面を維持（チラつき防止）
-    // ホストの場合：常に現状のゲームステータスに従う
     if (!isHost && !isFirstSyncReceived) {
-        lobbyContainer.style.display = "block";
-        gameContainer.style.display = "none";
+        if (lobbyContainer) lobbyContainer.style.display = "block";
+        if (gameContainer) gameContainer.style.display = "none";
     } else {
         // ホスト、または初回同期済みゲストの場合
         if (game.isGameStarted) {
-            lobbyContainer.style.display = "none";
-            gameContainer.style.display = "block";
+            if (lobbyContainer) lobbyContainer.style.display = "none";
+            if (gameContainer) gameContainer.style.display = "block";
         } else {
-            lobbyContainer.style.display = "block";
-            gameContainer.style.display = "none";
+            if (lobbyContainer) lobbyContainer.style.display = "block";
+            if (gameContainer) gameContainer.style.display = "none";
         }
     }
 
@@ -112,7 +112,7 @@ export function updateUI() {
     const deckCountNum = document.getElementById("deck-count-num");
     const deckPileVisual = document.getElementById("deck-pile-visual");
     if (deckCountNum && deckPileVisual) {
-        if (game.isGameStarted) {
+        if (game.isGameStarted && game.deck) {
             deckCountNum.innerText = game.deck.length;
             deckPileVisual.style.background = game.phase === "BID" ? "linear-gradient(135deg, #27ae60, #2ecc71)" : "linear-gradient(135deg, #3498db, #2980b9)";
         } else {
@@ -125,11 +125,12 @@ export function updateUI() {
     if (roleDisplayEl) {
         if (!game.isGameStarted) {
             roleDisplayEl.innerText = isHost ? "👑 ホスト（待機中）" : "🟢 ゲスト（接続済み・待機中）";
-        } else {
+            roleDisplayEl.style.color = "#2c3e50";
+        } else if (game.players) {
             const currentTurnPlayer = game.players[game.turnIndex];
             if (currentTurnPlayer) {
                 if (currentTurnPlayer.id === window.myId) {
-                    roleDisplayEl.innerText = "あなたは行動を選んでください";
+                    roleDisplayEl.innerText = "あなたのターンです。行動を選択してください。";
                     roleDisplayEl.style.color = "#e74c3c";
                 } else {
                     roleDisplayEl.innerText = `${currentTurnPlayer.name} の手番を待っています...`;
@@ -156,7 +157,7 @@ export function updateUI() {
     // 4. 各エリアの描画（ゲームの状態に応じて出し分け）
     if (!game.isGameStarted) {
         renderLobbyPlayerList();
-    } else {
+    } else if (game.players) {
         renderSidePlayerList();
         renderBidStatusBoard();
         renderMarket();
@@ -170,11 +171,12 @@ export function updateUI() {
         const myGameData = game.players.find(p => p.id === window.myId);
         if (myGameData && myGameData.coins === undefined) {
             if (connToHost && connToHost.open) {
-                connToHost.send(JSON.stringify({ 
+                // 💡 serialization: 'json' のため、オブジェクトのまま生で送信
+                connToHost.send({ 
                     type: "REQUEST_SYNC", 
                     playerId: window.myId, 
                     playerName: myGameData.name 
-                }));
+                });
             }
         }
     }
@@ -397,34 +399,39 @@ function renderConsoleAndHand() {
         cardArea.appendChild(coinContainer);
     } else {
         if (consoleInfo) consoleInfo.innerHTML = "提示する物件カード（手札）を1枚選んで場に出してください。";
-        document.getElementById("submit-bid-btn").disabled = true;
-        document.getElementById("submit-pass-btn").disabled = true;
+        
+        const bidBtn = document.getElementById("submit-bid-btn");
+        const passBtn = document.getElementById("submit-pass-btn");
+        if (bidBtn) bidBtn.disabled = true;
+        if (passBtn) passBtn.disabled = true;
 
         if (me.hasPassed) {
             cardArea.innerHTML = "<p style='color:#2ecc71;'>物件を提示しました。全員のオープンを待っています...</p>";
             return;
         }
 
-        me.hand.forEach((val) => {
-            const card = document.createElement("div");
-            card.className = "card";
-            card.style.display = "inline-block";
-            card.style.margin = "5px";
-            card.style.background = "#fff";
-            card.innerHTML = `
-                <div class="card-top-num">${val}</div>
-                <div class="card-illustration">${getCardEmoji(val)}</div>
-                <div class="card-bottom-num">${val}</div>
-            `;
-            if (isMyTurn) {
-                card.onclick = () => { if (confirm(`物件 No.${val} を提示しますか？`)) executePlayCard(val, {}); };
-                card.style.cursor = "pointer";
-            } else {
-                card.style.cursor = "not-allowed";
-                card.style.opacity = "0.5";
-            }
-            cardArea.appendChild(card);
-        });
+        if (me.hand) {
+            me.hand.forEach((val) => {
+                const card = document.createElement("div");
+                card.className = "card";
+                card.style.display = "inline-block";
+                card.style.margin = "5px";
+                card.style.background = "#fff";
+                card.innerHTML = `
+                    <div class="card-top-num">${val}</div>
+                    <div class="card-illustration">${getCardEmoji(val)}</div>
+                    <div class="card-bottom-num">${val}</div>
+                `;
+                if (isMyTurn) {
+                    card.onclick = () => { if (confirm(`物件 No.${val} を提示しますか？`)) executePlayCard(val, {}); };
+                    card.style.cursor = "pointer";
+                } else {
+                    card.style.cursor = "not-allowed";
+                    card.style.opacity = "0.5";
+                }
+                cardArea.appendChild(card);
+            });
+        }
     }
 }
 
@@ -435,12 +442,13 @@ function executePlayCard(actionValue, target) {
         broadcastState();
         updateUI();
     } else if (connToHost && connToHost.open) {
-        connToHost.send(JSON.stringify({
+        // 💡 serialization: 'json' のため、オブジェクトのまま直接シームレスに送信
+        connToHost.send({
             type: "ACTION",
             playerId: window.myId,
             actionValue: actionValue,
             target: target
-        }));
+        });
         currentSelectedCoins = 0;
     }
 }
@@ -449,45 +457,64 @@ export function renderCustomSettingsUI() {
     const div = document.getElementById("integrated-custom-settings");
     if (!div) return;
 
+    // 初回だけ外枠を構築し、フォーカス外れを防ぐ
+    if (!div.hasAttribute("data-built")) {
+        const titleText = isHost ? "⚙️ ルームカスタム設定 (ホスト権限)" : "📋 現在のルームカスタム設定 (閲覧のみ)";
+        const disabledAttr = isHost ? "" : "disabled";
+
+        div.innerHTML = `
+            <h3 style="margin-top:0;">${titleText}</h3>
+            <div style="background: rgba(0,0,0,0.03); padding: 10px; border-radius: 6px; margin-top: 5px; border: 1px solid #dcd1be;">
+                <div class="setting-item" style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <span>初期配布コイン枚数 (🪙):</span>
+                    <input type="number" id="cfg-initial-coins" min="5" max="30" ${disabledAttr} style="width:60px; padding:4px;">
+                </div>
+                <div class="setting-item" style="display:flex; justify-content:space-between;">
+                    <span>1フェーズあたりのターン数:</span>
+                    <input type="number" id="cfg-custom-turns" min="2" max="15" ${disabledAttr} style="width:60px; padding:4px;">
+                </div>
+            </div>
+        `;
+        div.setAttribute("data-built", "true");
+
+        if (isHost) {
+            document.getElementById("cfg-initial-coins")?.addEventListener("input", (e) => {
+                game.initialCoins = Math.max(5, parseInt(e.target.value) || 18);
+                broadcastState();
+            });
+            document.getElementById("cfg-custom-turns")?.addEventListener("input", (e) => {
+                game.customTurns = Math.max(2, parseInt(e.target.value) || 5);
+                broadcastState();
+            });
+        }
+    }
+
+    // ホストの最新のステート値をリアクティブに反映
+    const coinInput = document.getElementById("cfg-initial-coins");
+    const turnInput = document.getElementById("cfg-custom-turns");
+    
+    if (coinInput && document.activeElement !== coinInput) {
+        coinInput.value = game.initialCoins || 18;
+    }
+    if (turnInput && document.activeElement !== turnInput) {
+        turnInput.value = game.customTurns || 5;
+    }
+
+    // 権限のインタラクティブ制御
     if (!isHost) {
-        div.style.opacity = "0.5";
+        div.style.opacity = "0.6";
         div.style.pointerEvents = "none";
+        if (coinInput) coinInput.disabled = true;
+        if (turnInput) turnInput.disabled = true;
     } else {
         div.style.opacity = "1.0";
         div.style.pointerEvents = "auto";
-    }
-
-    const titleText = isHost ? "⚙️ ルームカスタム設定 (ホスト権限)" : "📋 現在のルームカスタム設定 (閲覧のみ)";
-    const disabledAttr = isHost ? "" : "disabled";
-
-    div.innerHTML = `
-        <h3 style="margin-top:0;">${titleText}</h3>
-        <div style="background: rgba(0,0,0,0.03); padding: 10px; border-radius: 6px; margin-top: 5px; border: 1px solid #dcd1be;">
-            <div class="setting-item" style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                <span>初期配布コイン枚数 (🪙):</span>
-                <input type="number" id="cfg-initial-coins" value="${game.initialCoins || 18}" min="5" max="30" ${disabledAttr} style="width:60px; padding:4px;">
-            </div>
-            <div class="setting-item" style="display:flex; justify-content:space-between;">
-                <span>1フェーズあたりのターン数:</span>
-                <input type="number" id="cfg-custom-turns" value="${game.customTurns || 5}" min="2" max="15" ${disabledAttr} style="width:60px; padding:4px;">
-            </div>
-        </div>
-    `;
-
-    if (isHost) {
-        document.getElementById("cfg-initial-coins")?.addEventListener("change", (e) => {
-            game.initialCoins = Math.max(5, parseInt(e.target.value) || 18);
-            broadcastState();
-            updateUI();
-        });
-        document.getElementById("cfg-custom-turns")?.addEventListener("change", (e) => {
-            game.customTurns = Math.max(2, parseInt(e.target.value) || 5);
-            broadcastState();
-            updateUI();
-        });
+        if (coinInput) coinInput.disabled = false;
+        if (turnInput) turnInput.disabled = false;
     }
 }
 
+// 互換性維持用の空関数
 export function syncGuestSettingsUI(cardSettings, drawSettings) {}
 export function injectCustomSettingsUIIntoGame() {}
 export function injectAbortButton() {}

@@ -166,6 +166,26 @@ export function updateUI() {
     
     renderCustomSettingsUI();
 
+    // === ID照合の不整合を突き止めるためのデバッグログ ===
+    console.log("=== 【UI同期チェック】自分のIDとプレイヤーリストの照合 ===");
+    console.log("1. window.myId の値:", window.myId, "型:", typeof window.myId);
+
+    if (game && game.players) {
+        console.log("2. game.players 内の全プレイヤーID一覧:");
+        game.players.forEach((p, idx) => {
+            const isMatchedStrict = (p.id === window.myId);
+            const isMatchedLoose  = (String(p.id) === String(window.myId));
+            
+            console.log(`   └─ [プレイヤー ${idx}] 名前: ${p.name}`);
+            console.log(`      ├─ サーバー側のID:`, p.id, "型:", typeof p.id);
+            console.log(`      ├─ 厳密一致 (===):`, isMatchedStrict ? "⭕ 一致！" : "❌ 不一致");
+            console.log(`      └─ 型変換一致 (String):`, isMatchedLoose ? "⭕ 一致！" : "❌ 不一致");
+        });
+    } else {
+        console.log("2. ❌ game.players データ自体がまだ存在しません（または空です）");
+    }
+    console.log("==================================================");
+
     // 5. データ不整合検知による自動同期要求（ゲスト用）
     if (!isHost && game.isGameStarted && game.players && game.players.length > 0) {
         const myGameData = game.players.find(p => p.id === window.myId);

@@ -425,12 +425,17 @@ function sendStateToSingleConnection(conn) {
         secretView: secretViewData
     };
 
-    console.log("=== 📤 [HOST OUPUT] ゲストへ送信する直前のパケット ===");
-    console.log("送信先 PeerID:", conn.peer);
-    console.log("パケット全体:", payload);
-    if (payload && payload.gameState) {
-        console.log("送信直前の gameState.players:", payload.gameState.players);
-        console.log("送信直前の gameState.players の型/配列か?:", Array.isArray(payload.gameState.players));
+    // 🔬 【ホスト側・ディープデバッグ】
+    console.log("=== 📤 [HOST OUPUT] 送信パケットのシリアライズテスト ===");
+    console.log("1. 生の gameState.players:", payload.gameState.players);
+    
+    try {
+        // 実際にJSON文字列に変換できるか、何が残るかを実験します
+        const testJson = JSON.stringify(payload.gameState.players);
+        console.log("2. 🧪 JSON化に成功した文字列:", testJson);
+        console.log("3. 🧪 JSONから復元した際の中身:", JSON.parse(testJson));
+    } catch (serializeError) {
+        console.error("🚨 決定的なエラー: gameState.players の JSON化に失敗しました！原因:", serializeError);
     }
     console.log("=================================================");
 

@@ -385,20 +385,36 @@ function sendStateToSingleConnection(conn) {
             cardSettings: game.cardSettings,
             drawSettings: game.drawSettings,
             logMessages: game.logMessages,
-            phase: game.phase, // 💡 phase も乗せる
-            players: game.players ? game.players.map(p => ({
-                id: p.id,
-                name: p.name,
-                alive: p.alive,
-                protected: p.protected,
-                history: p.history,
-                spectator: p.spectator,
-                score: p.score,
-                coins: p.coins,
-                bid: p.bid,
-                hasPassed: p.hasPassed,
-                hand: (p.id === conn.peer) ? p.hand : p.hand.map(() => 0)
-            })) : []
+            phase: game.phase,
+            
+            // ゲーム開始後は game.players、開始前はロビー名簿(rawPlayerList)をベースにして、必ずプレイヤー一覧を構築して送る
+            players: (game.isGameStarted && game.players && game.players.length > 0) 
+                ? game.players.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    alive: p.alive,
+                    protected: p.protected,
+                    history: p.history,
+                    spectator: p.spectator,
+                    score: p.score,
+                    coins: p.coins,
+                    bid: p.bid,
+                    hasPassed: p.hasPassed,
+                    hand: (p.id === conn.peer) ? p.hand : p.hand.map(() => 0)
+                }))
+                : rawPlayerList.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    alive: true,
+                    protected: false,
+                    history: [],
+                    spectator: p.spectator || false,
+                    score: p.score || 0,
+                    coins: game.initialCoins || 18, // ロビー時点の初期コイン
+                    bid: 0,
+                    hasPassed: false,
+                    hand: []
+                }))
         },
         secretView: secretViewData
     };

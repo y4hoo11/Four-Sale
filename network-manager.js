@@ -250,9 +250,27 @@ export function handleGuestReceiveData(data) {
 
         rawPlayerList = data.rawPlayerList;
 
+        // 送られてきたプレイヤーデータを安全に同期する
         if (data.gameState.players) {
-            game.players = data.gameState.players;
+            // 配列の初期化構造を壊さないよう、既存の配列があれば中身を入れ替え、なければ代入する
+            if (Array.isArray(game.players)) {
+                // 配列の長さをリセットして、ホストから届いた新しいデータで満たす
+                game.players.length = 0; 
+                data.gameState.players.forEach(p => {
+                    game.players.push(p);
+                });
+            } else {
+                // game.players が最初から配列ではない特殊なオブジェクト（クラス等）だった場合の安全弁
+                if (typeof game.players === "object" && game.players !== null) {
+                    Object.assign(game.players, data.gameState.players);
+                } else {
+                    game.players = data.gameState.players;
+                }
+            }
         }
+        
+        // 💡 【デバッグログを追加】正しくゲストのgame.playersに入ったかチェック
+        console.log("🔄 [同期完了直後] ゲスト側の game.players の中身:", game.players);
 
         if (data.gameState.logMessages) {
             const logBox = document.getElementById("log-box");
@@ -529,7 +547,7 @@ export function guestJoinRoom(targetRoomId, myName) {
             try { conn.close(); } catch(e){}
             setConnToHost(null);
         }
-        updateUI(); 
+        updateUI();
         alert("ホストの部屋が見つかりませんでした。ホストが部屋を作成したことを確認してから再度お試しください。");
     }, 3000);
 

@@ -380,71 +380,80 @@ function sendStateToSingleConnection(conn) {
         delete targetPlayerInGame.pendingSecretView;
     }
 
+    // 💡【超堅牢化】エラーで送信がちぎれるのを防ぐため、プレイヤーリストを完全に安全に事前ビルド
+    let safePlayers = [];
+    try {
+        if (game.players && game.players.length > 0) {
+            safePlayers = game.players.map(p => {
+                // 手札配列の安全な確保（undefined や null なら空配列にする）
+                const currentHand = Array.isArray(p.hand) ? p.hand : [];
+                return {
+                    id: String(p.id || ""),
+                    name: String(p.name || "ゲスト"),
+                    alive: p.alive !== undefined ? Boolean(p.alive) : true,
+                    protected: p.protected !== undefined ? Boolean(p.protected) : false,
+                    history: Array.isArray(p.history) ? [...p.history] : [],
+                    spectator: Boolean(p.spectator),
+                    score: Number(p.score || 0),
+                    coins: p.coins !== undefined ? Number(p.coins) : (game.initialCoins || 18),
+                    bid: Number(p.bid || 0),
+                    hasPassed: Boolean(p.hasPassed),
+                    // 🔒 安全にマスク処理（currentHand が空ならエラーにならない）
+                    hand: (p.id === conn.peer) ? [...currentHand] : currentHand.map(() => 0)
+                };
+            });
+        } else {
+            safePlayers = rawPlayerList.map(p => ({
+                id: String(p.id || ""),
+                name: String(p.name || "ゲスト"),
+                alive: true,
+                protected: false,
+                history: [],
+                spectator: Boolean(p.spectator),
+                score: Number(p.score || 0),
+                coins: Number(game.initialCoins || 18),
+                bid: 0,
+                hasPassed: false,
+                hand: []
+            }));
+        }
+    } catch (buildError) {
+        console.error("🚨 プレイヤーデータ構築中に深刻なエラーが発生しました:", buildError);
+    }
+
+    // 💡 クラスインスタンス由来の道連れ消滅を防ぐため、
+    // gameState全体を完全にプレーンなオブジェクト（ただの連想配列）としてゼロから組み立てる
     const payload = {
         type: "SYNC_STATE",
-        rawPlayerList: rawPlayerList,
+        rawPlayerList: JSON.parse(JSON.stringify(rawPlayerList)), // 完全なディープコピー
         gameState: {
-            isGameStarted: game.isGameStarted,
-            deck: game.deck,
-            turnIndex: game.turnIndex,
-            highestBid: game.highestBid,
-            cardSettings: game.cardSettings,
-            drawSettings: game.drawSettings,
-            logMessages: game.logMessages,
-            phase: game.phase,
-            
-            // 💡【修正】game.players が存在し、ゲームが稼働しているならそれを最優先で送る
-            players: (game.players && game.players.length > 0)
-                ? game.players.map(p => ({
-                    id: p.id,
-                    name: p.name,
-                    alive: p.alive !== undefined ? p.alive : true,
-                    protected: p.protected !== undefined ? p.protected : false,
-                    history: Array.isArray(p.history) ? [...p.history] : [],
-                    spectator: p.spectator || false,
-                    score: p.score || 0,
-                    coins: p.coins !== undefined ? p.coins : (game.initialCoins || 18),
-                    bid: p.bid || 0,
-                    hasPassed: p.hasPassed || false,
-                    // 🔒 自分の手札だけ生データを見せ、他人の手札は「0」にマスクしてチートを防ぐ
-                    hand: (p.id === conn.peer) ? (Array.isArray(p.hand) ? [...p.hand] : []) : (Array.isArray(p.hand) ? p.hand.map(() => 0) : [])
-                }))
-                // ゲーム開始前（名簿しかない場合）のフォールバック
-                : rawPlayerList.map(p => ({
-                    id: p.id,
-                    name: p.name,
-                    alive: true,
-                    protected: false,
-                    history: [],
-                    spectator: p.spectator || false,
-                    score: p.score || 0,
-                    coins: game.initialCoins || 18,
-                    bid: 0,
-                    hasPassed: false,
-                    hand: []
-                }))
+            isGameStarted: Boolean(game.isGameStarted),
+            deck: Array.isArray(game.deck) ? [...game.deck] : [],
+            turnIndex: Number(game.turnIndex || 0),
+            highestBid: Number(game.highestBid || 0),
+            phase: String(game.phase || "BID"),
+            logMessages: Array.isArray(game.logMessages) ? [...game.logMessages] : [],
+            // クラスオブジェクトが混入しやすい設定まわりも安全にコピー
+            cardSettings: game.cardSettings ? JSON.parse(JSON.stringify(game.cardSettings)) : null,
+            drawSettings: game.drawSettings ? JSON.parse(JSON.stringify(game.drawSettings)) : null,
+            // 先ほど事前ビルドした、100%安全なプレイヤー配列
+            players: safePlayers
         },
-        secretView: secretViewData
+        secretView: secretViewData ? JSON.parse(JSON.stringify(secretViewData)) : null
     };
 
-    // 🔬 【ホスト側・ディープデバッグ】
-    console.log("=== 📤 [HOST OUPUT] 送信パケットのシリアライズテスト ===");
-    console.log("1. 生の gameState.players:", payload.gameState.players);
-    
+    // 🔬 【最終送信テスト】パケット全体のシリアライズが本当に成功するかチェック
     try {
-        // 実際にJSON文字列に変換できるか、何が残るかを実験します
-        const testJson = JSON.stringify(payload.gameState.players);
-        console.log("2. 🧪 JSON化に成功した文字列:", testJson);
-        console.log("3. 🧪 JSONから復元した際の中身:", JSON.parse(testJson));
-    } catch (serializeError) {
-        console.error("🚨 決定的なエラー: gameState.players の JSON化に失敗しました！原因:", serializeError);
-    }
-    console.log("=================================================");
-
-    try {
-        conn.send(payload);
-    } catch (e) {
-        console.error("送信エラー:", e);
+        const finalCheckJson = JSON.stringify(payload);
+        console.log("✈️ 【ホスト送信直前】パケット全体のシリアライズに完全成功しました！文字数:", finalCheckJson.length);
+        
+        // 💡 確実に文字化（JSON化）して送ることで、PeerJSの内部シリアライズによる消失バグを完全にすり抜ける
+        conn.send(finalCheckJson);
+    } catch (sendSerializeError) {
+        console.error("🚨 致命的：パケット全体の送信（JSON化）に失敗しました。原因:", sendSerializeError);
+        
+        // 万が一のフォールバック（生のまま送る）
+        try { conn.send(payload); } catch(e){}
     }
 }
 

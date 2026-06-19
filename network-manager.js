@@ -430,6 +430,7 @@ function sendStateToSingleConnection(conn) {
         gameState: {
             isGameStarted: Boolean(game.isGameStarted),
             deck: Array.isArray(game.deck) ? [...game.deck] : [],
+            market: Array.isArray(game.market) ? [...game.market] : [],
             turnIndex: Number(game.turnIndex || 0),
             highestBid: Number(game.highestBid || 0),
             phase: String(game.phase || "BID"),

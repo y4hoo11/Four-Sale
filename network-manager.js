@@ -259,6 +259,7 @@ export function handleGuestReceiveData(data) {
         // ステートのマッピング
         game.isGameStarted = data.gameState.isGameStarted;
         game.deck = data.gameState.deck;
+        game.market = Array.isArray(data.gameState.market) ? [...data.gameState.market] : [];
         game.turnIndex = data.gameState.turnIndex;
         game.highestBid = data.gameState.highestBid || 0;
         game.cardSettings = data.gameState.cardSettings;

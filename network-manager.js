@@ -393,21 +393,23 @@ function sendStateToSingleConnection(conn) {
             logMessages: game.logMessages,
             phase: game.phase,
             
-            // ゲーム開始後は game.players、開始前はロビー名簿(rawPlayerList)をベースにして、必ずプレイヤー一覧を構築して送る
-            players: (game.isGameStarted && game.players && game.players.length > 0) 
+            // 💡【修正】game.players が存在し、ゲームが稼働しているならそれを最優先で送る
+            players: (game.players && game.players.length > 0)
                 ? game.players.map(p => ({
                     id: p.id,
                     name: p.name,
-                    alive: p.alive,
-                    protected: p.protected,
-                    history: p.history,
-                    spectator: p.spectator,
-                    score: p.score,
-                    coins: p.coins,
-                    bid: p.bid,
-                    hasPassed: p.hasPassed,
-                    hand: (p.id === conn.peer) ? p.hand : p.hand.map(() => 0)
+                    alive: p.alive !== undefined ? p.alive : true,
+                    protected: p.protected !== undefined ? p.protected : false,
+                    history: Array.isArray(p.history) ? [...p.history] : [],
+                    spectator: p.spectator || false,
+                    score: p.score || 0,
+                    coins: p.coins !== undefined ? p.coins : (game.initialCoins || 18),
+                    bid: p.bid || 0,
+                    hasPassed: p.hasPassed || false,
+                    // 🔒 自分の手札だけ生データを見せ、他人の手札は「0」にマスクしてチートを防ぐ
+                    hand: (p.id === conn.peer) ? (Array.isArray(p.hand) ? [...p.hand] : []) : (Array.isArray(p.hand) ? p.hand.map(() => 0) : [])
                 }))
+                // ゲーム開始前（名簿しかない場合）のフォールバック
                 : rawPlayerList.map(p => ({
                     id: p.id,
                     name: p.name,
@@ -416,7 +418,7 @@ function sendStateToSingleConnection(conn) {
                     history: [],
                     spectator: p.spectator || false,
                     score: p.score || 0,
-                    coins: game.initialCoins || 18, // ロビー時点の初期コイン
+                    coins: game.initialCoins || 18,
                     bid: 0,
                     hasPassed: false,
                     hand: []

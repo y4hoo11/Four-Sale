@@ -1,4 +1,4 @@
-// network-manager.js
+// network-manager.js 
 import { game } from "./game-logic.js";
 import { updateUI } from "./ui-manager.js";
 
@@ -16,6 +16,7 @@ window.game = game;
 
 // 💡 共通の接続安定化オプション（GoogleのパブリックSTUNサーバーを指定してタイムアウトを防ぐ）
 const peerOptions = {
+    serialization: 'json',
     config: {
         'iceServers': [
             { url: 'stun:stun.l.google.com:19302' },
@@ -123,6 +124,23 @@ export function handleHostReceiveData(conn, data) {
 export function handleGuestReceiveData(data) {
     if (isHost) return;
 
+    // 🔬 【ゲスト側・受信直後デバッグ】
+    console.log("=== 📥 [GUEST INPUT] ホストからパケットが物理的に届きました ===");
+    console.log("届いたデータの型:", typeof data);
+    console.log("データ全体のプロパティ一覧:", data ? Object.keys(data) : "null/undefined");
+    
+    if (data) {
+        console.log("1. data.type の値:", data.type);
+        console.log("2. data.rawPlayerList の中身:", data.rawPlayerList);
+        
+        if (data.gameState) {
+            console.log("3. data.gameState のプロパティ一覧:", Object.keys(data.gameState));
+            console.log("4. data.gameState.players の生の値:", data.gameState.players);
+        } else {
+            console.log("🚨 警告: data.gameState 自体が存在しません！");
+        }
+    }
+    console.log("=========================================================");
     // 💡 ホスト移行命令（HOST_MIGRATION）を受信した場合の処理
     if (data.type === "HOST_MIGRATION") {
         game.log(`🔄 ホストが ${data.newHostName || "新しいホスト"} に移行されます。ネットワークを再構築中...`);
@@ -213,18 +231,64 @@ export function handleGuestReceiveData(data) {
     }
 
     if (data.type === "SYNC_STATE") {
+        console.log("🔍 [DEBUG] ゲストが SYNC_STATE を受信しました:", data);
+
+        // 💡【最重要修正】ui-manager.js 内のフラグ管理関数を呼び出して、向こうの画面ロックを解除させる
+        import("./ui-manager.js").then(mod => {
+            mod.markFirstSyncComplete();
+        });
+
+        // 💡 画面表示の切り替え（前回の残存コンテナ非表示バグの修正）
+        const setupContainer = document.getElementById("setup-container");
+        const lobbyContainer = document.getElementById("lobby-container");
+        const gameContainer = document.getElementById("game-container");
+        if (setupContainer) setupContainer.style.display = "none";
+        
+        // ゲームが開始されているかいないかでコンテナを制御
+        if (data.gameState.isGameStarted) {
+            if (lobbyContainer) lobbyContainer.style.display = "none";
+            if (gameContainer) gameContainer.style.display = "block";
+        } else {
+            if (lobbyContainer) lobbyContainer.style.display = "block";
+            if (gameContainer) gameContainer.style.display = "none";
+        }
+        
+        const joinBtn = document.getElementById("join-room-btn");
+        if (joinBtn) joinBtn.disabled = false;
+        
+        // ステートのマッピング
         game.isGameStarted = data.gameState.isGameStarted;
         game.deck = data.gameState.deck;
+        game.market = Array.isArray(data.gameState.market) ? [...data.gameState.market] : [];
         game.turnIndex = data.gameState.turnIndex;
         game.highestBid = data.gameState.highestBid || 0;
         game.cardSettings = data.gameState.cardSettings;
         game.drawSettings = data.gameState.drawSettings;
+        game.phase = data.gameState.phase || game.phase; // phase も念のため同期
 
         rawPlayerList = data.rawPlayerList;
 
+        // 送られてきたプレイヤーデータを安全に同期する
         if (data.gameState.players) {
-            game.players = data.gameState.players;
+            // 配列の初期化構造を壊さないよう、既存の配列があれば中身を入れ替え、なければ代入する
+            if (Array.isArray(game.players)) {
+                // 配列の長さをリセットして、ホストから届いた新しいデータで満たす
+                game.players.length = 0; 
+                data.gameState.players.forEach(p => {
+                    game.players.push(p);
+                });
+            } else {
+                // game.players が最初から配列ではない特殊なオブジェクト（クラス等）だった場合の安全弁
+                if (typeof game.players === "object" && game.players !== null) {
+                    Object.assign(game.players, data.gameState.players);
+                } else {
+                    game.players = data.gameState.players;
+                }
+            }
         }
+        
+        // 💡 【デバッグログを追加】正しくゲストのgame.playersに入ったかチェック
+        console.log("🔄 [同期完了直後] ゲスト側の game.players の中身:", game.players);
 
         if (data.gameState.logMessages) {
             const logBox = document.getElementById("log-box");
@@ -245,7 +309,7 @@ export function handleGuestReceiveData(data) {
             }
         }
 
-        // 💡 自動移行でホストになった場合のフォールバック（HOST_MIGRATIONが不発だった場合用）
+        // 自動移行でホストになった場合のフォールバック
         const myInfo = rawPlayerList.find(p => p.id === window.myId);
         if (myInfo && myInfo.isHost && !isHost) {
             setIsHost(true);
@@ -254,7 +318,7 @@ export function handleGuestReceiveData(data) {
                 window.activateHostMode();
             }
         }
-
+        
         updateUI();
     }
 }
@@ -283,21 +347,19 @@ function handlePlayerDisconnect(peerId) {
         }
     }
 
-    // 💡 ホストが「不意の事故」で突然切断された場合の自動マイグレーション処理
+    // 💡 ホストが突然切断された場合の自動マイグレーション処理
     if (leftPlayer.isHost) {
         leftPlayer.isHost = false;
         const nextHost = rawPlayerList.find(p => !p.disconnected);
         if (nextHost) {
             game.log(`👑 ホストが切断されたため、次の最古参プレイヤー ${nextHost.name} への移行準備を行います...`);
             
-            // 自分が次のホストに選ばれた場合
             if (nextHost.id === window.myId) {
                 setIsHost(true);
                 guestConnections = [];
                 if (typeof window.activateHostMode === "function") {
                     window.activateHostMode();
                 }
-                // 自分が持っている「直近のゲームデータ」を正として全員を再招待する号令を出す
                 rawPlayerList.forEach(p => { if(p.id !== window.myId) p.disconnected = true; });
                 nextHost.isHost = true;
             }
@@ -319,34 +381,82 @@ function sendStateToSingleConnection(conn) {
         delete targetPlayerInGame.pendingSecretView;
     }
 
-    const payload = JSON.stringify({
+    // 💡【超堅牢化】エラーで送信がちぎれるのを防ぐため、プレイヤーリストを完全に安全に事前ビルド
+    let safePlayers = [];
+    try {
+        if (game.players && game.players.length > 0) {
+            safePlayers = game.players.map(p => {
+                // 手札配列の安全な確保（undefined や null なら空配列にする）
+                const currentHand = Array.isArray(p.hand) ? p.hand : [];
+                return {
+                    id: String(p.id || ""),
+                    name: String(p.name || "ゲスト"),
+                    alive: p.alive !== undefined ? Boolean(p.alive) : true,
+                    protected: p.protected !== undefined ? Boolean(p.protected) : false,
+                    history: Array.isArray(p.history) ? [...p.history] : [],
+                    spectator: Boolean(p.spectator),
+                    score: Number(p.score || 0),
+                    coins: p.coins !== undefined ? Number(p.coins) : (game.initialCoins || 18),
+                    bid: Number(p.bid || 0),
+                    hasPassed: Boolean(p.hasPassed),
+                    // 🔒 安全にマスク処理（currentHand が空ならエラーにならない）
+                    hand: (p.id === conn.peer) ? [...currentHand] : currentHand.map(() => 0)
+                };
+            });
+        } else {
+            safePlayers = rawPlayerList.map(p => ({
+                id: String(p.id || ""),
+                name: String(p.name || "ゲスト"),
+                alive: true,
+                protected: false,
+                history: [],
+                spectator: Boolean(p.spectator),
+                score: Number(p.score || 0),
+                coins: Number(game.initialCoins || 18),
+                bid: 0,
+                hasPassed: false,
+                hand: []
+            }));
+        }
+    } catch (buildError) {
+        console.error("🚨 プレイヤーデータ構築中に深刻なエラーが発生しました:", buildError);
+    }
+
+    // 💡 クラスインスタンス由来の道連れ消滅を防ぐため、
+    // gameState全体を完全にプレーンなオブジェクト（ただの連想配列）としてゼロから組み立てる
+    const payload = {
         type: "SYNC_STATE",
-        rawPlayerList: rawPlayerList, 
+        rawPlayerList: JSON.parse(JSON.stringify(rawPlayerList)), // 完全なディープコピー
         gameState: {
-            isGameStarted: game.isGameStarted,
-            deck: game.deck,
-            turnIndex: game.turnIndex,
-            highestBid: game.highestBid,
-            cardSettings: game.cardSettings,
-            drawSettings: game.drawSettings,
-            logMessages: game.logMessages,
-            players: game.players ? game.players.map(p => ({
-                id: p.id,
-                name: p.name,
-                alive: p.alive,
-                protected: p.protected,
-                history: p.history,
-                spectator: p.spectator,
-                score: p.score,
-                coins: p.coins,
-                bid: p.bid,
-                hasPassed: p.hasPassed,
-                hand: (p.id === conn.peer) ? p.hand : p.hand.map(() => 0) // 💡 チート防止フィルター
-            })) : []
+            isGameStarted: Boolean(game.isGameStarted),
+            deck: Array.isArray(game.deck) ? [...game.deck] : [],
+            market: Array.isArray(game.market) ? [...game.market] : [],
+            turnIndex: Number(game.turnIndex || 0),
+            highestBid: Number(game.highestBid || 0),
+            phase: String(game.phase || "BID"),
+            logMessages: Array.isArray(game.logMessages) ? [...game.logMessages] : [],
+            // クラスオブジェクトが混入しやすい設定まわりも安全にコピー
+            cardSettings: game.cardSettings ? JSON.parse(JSON.stringify(game.cardSettings)) : null,
+            drawSettings: game.drawSettings ? JSON.parse(JSON.stringify(game.drawSettings)) : null,
+            // 先ほど事前ビルドした、100%安全なプレイヤー配列
+            players: safePlayers
         },
-        secretView: secretViewData
-    });
-    conn.send(payload);
+        secretView: secretViewData ? JSON.parse(JSON.stringify(secretViewData)) : null
+    };
+
+    // 🔬 【最終送信テスト】パケット全体のシリアライズが本当に成功するかチェック
+    try {
+        const finalCheckJson = JSON.stringify(payload);
+        console.log("✈️ 【ホスト送信直前】パケット全体のシリアライズに完全成功しました！文字数:", finalCheckJson.length);
+        
+        // 💡 確実に文字化（JSON化）して送ることで、PeerJSの内部シリアライズによる消失バグを完全にすり抜ける
+        conn.send(finalCheckJson);
+    } catch (sendSerializeError) {
+        console.error("🚨 致命的：パケット全体の送信（JSON化）に失敗しました。原因:", sendSerializeError);
+        
+        // 万が一のフォールバック（生のまま送る）
+        try { conn.send(payload); } catch(e){}
+    }
 }
 
 // ホストから全ゲストへ状態をブロードキャスト
@@ -367,15 +477,18 @@ export function hostKickPlayer(peerId) {
     handlePlayerDisconnect(peerId);
 }
 
-// ホスト用：「接続切れ」状態のプレイヤーを表示ごとリストから抹殺する
+/**
+ * 🗑️ ホスト用：「切断」状態のプレイヤーをルームから完全に削除する
+ */
 export function hostRemoveDisconnectedPlayer(peerId) {
     if (!isHost) return;
+
     const target = rawPlayerList.find(p => p.id === peerId);
     if (target) {
-        game.log(`🗑️ ${target.name} のデータがルームから完全に削除されました。`);
+        game.log(`🗑️ ${target.name} のデータがルームから削除されました。`);
     }
-    rawPlayerList = rawPlayerList.filter(p => p.id !== peerId);
     
+    rawPlayerList = rawPlayerList.filter(p => p.id !== peerId);
     broadcastState();
     updateUI();
 }
@@ -402,7 +515,7 @@ export function leaveRoom() {
         });
     } else {
         if (connToHost && connToHost.open) {
-            connToHost.send(JSON.stringify({ type: "LEAVE" }));
+            connToHost.send({ type: "LEAVE" });
             connToHost.close();
         }
     }
@@ -424,7 +537,6 @@ function displayMyRoomId(id) {
  * 👑 ホストとして部屋を作成する
  */
 export function hostCreateRoom(myName) {
-    // 💡 古いインスタンスがあればクリーンアップしてから生成
     const activePeer = window.peer || peer;
     if (activePeer) {
         try { activePeer.destroy(); } catch(e) {}
@@ -455,7 +567,6 @@ export function hostCreateRoom(myName) {
         updateUI();
     });
 
-    // 待ち受け処理の共通化
     window.activateHostMode();
 }
 
@@ -468,11 +579,12 @@ export function guestJoinRoom(targetRoomId, myName) {
         return;
     }
 
-    // 💡 script.js で既に作成されている完璧な通信枠（window.peer）をそのまま利用する
     const activePeer = window.peer || peer; 
     
     if (!activePeer || activePeer.disconnected) {
         alert("ネットワークの準備ができていません。ページを再読み込みしてください。");
+        const joinBtn = document.getElementById("join-room-btn");
+        if (joinBtn) joinBtn.disabled = false;
         return;
     }
 
@@ -480,24 +592,22 @@ export function guestJoinRoom(targetRoomId, myName) {
     setIsHost(false);
 
     game.log(`🏠 部屋 [ ${targetRoomId} ] へ接続を試みています...`);
-    console.log(`[DEBUG 1] ${targetRoomId} に向けて activePeer.connect() を実行します。`);
 
-    // 💡 ここで新しく作り直さず、既存の枠から直接コネクションを張る
     const conn = activePeer.connect(targetRoomId);
     setConnToHost(conn);
     
-    console.log(`[DEBUG 2] conn オブジェクトの作成完了。`);
-
     // 🔥 3秒のセーフティタイマー（ホストがいない場合）
     connectionTimeout = setTimeout(() => {
-        console.log(`[DEBUG ❌ TIMEOUT] 3秒間応答がありませんでした。`);
         game.log("<b style='color: red;'>❌ 入室失敗: ホストから応答がありません。部屋がまだ作成されていないか、IDが間違っています。</b>");
         
+        const joinBtn = document.getElementById("join-room-btn");
+        if (joinBtn) joinBtn.disabled = false;
+
         if (conn) {
             try { conn.close(); } catch(e){}
             setConnToHost(null);
         }
-        updateUI(); 
+        updateUI();
         alert("ホストの部屋が見つかりませんでした。ホストが部屋を作成したことを確認してから再度お試しください。");
     }, 3000);
 
@@ -510,21 +620,15 @@ export function guestJoinRoom(targetRoomId, myName) {
             connectionTimeout = null;
         }
 
-        // 💡 接続に成功したこの瞬間に、ゲストの画面を「ゲーム画面」へパッと切り替える！
-        const setupContainer = document.getElementById("setup-container");
-        const gameContainer = document.getElementById("game-container");
-        if (setupContainer) setupContainer.style.display = "none";
-        if (gameContainer) gameContainer.style.display = "block";
-
-        game.log("⚡ ホストとの接続が確立しました。入室リクエストを送ります。");
+        // 画面切り替えのロジックを削除（updateUI() での同期完了を待つため）
+        game.log("⚡ ホストとの接続が確立しました。入室リクエストを送ります...");
         
-        // 💡 ここでもUUIDではなく、window.myId（8桁）を確実に送信する
-        conn.send(JSON.stringify({
+        // serialization: 'json' 設定時は、オブジェクトをそのまま送るだけでOK
+        conn.send({
             type: "JOIN",
             id: window.myId, 
             name: myName || "ゲスト"
-        }));
-        console.log(`[DEBUG 4] ホストへ JOIN メッセージを送信しました。`);
+        });
     });
 
     conn.on("data", (data) => {
@@ -547,17 +651,17 @@ export function guestJoinRoom(targetRoomId, myName) {
     conn.on("error", (err) => {
         console.error("接続エラー:", err);
         game.log("⚠️ ホストへの接続中にエラーが発生しました。");
+        const joinBtn = document.getElementById("join-room-btn");
+        if (joinBtn) joinBtn.disabled = false;
         if (connectionTimeout) clearTimeout(connectionTimeout);
     });
 }
 
-// 💡 改善されたサーバー待ち受け処理（移行時の再マッピング対応）
+// 改善されたサーバー待ち受け処理
 window.activateHostMode = function() {
-    // 💡 window.peer を最優先で参照して一本化
     const activePeer = window.peer || peer;
     if (!activePeer) return;
     
-    // 以前登録された古い connection リスナーをクリアして二重登録を防ぐ
     activePeer.off("connection"); 
     
     activePeer.on("connection", (conn) => {
@@ -576,7 +680,7 @@ window.activateHostMode = function() {
     });
 };
 
-// 💡 明示的な権限委譲シーケンス
+// 明示的な権限委譲シーケンス
 export function transferHostPrivilege(newHostId) {
     if (!isHost) return;
 
@@ -585,11 +689,9 @@ export function transferHostPrivilege(newHostId) {
 
     game.log(`🔄 ホスト権限を ${targetName} へ移行する手続きを開始しました...`);
 
-    // 1. 新ホストに渡すための「完全なゲーム状態」をシリアライズ
     const fullGameState = JSON.stringify(game);
 
-    // 2. 全員に「ホスト移行通知」と「完全な生データ」をブロードキャスト
-    const payload = JSON.stringify({
+    const payload = {
         type: "HOST_MIGRATION",
         newHostId: newHostId,
         newHostName: targetName,
@@ -599,32 +701,28 @@ export function transferHostPrivilege(newHostId) {
             if (p.id === window.myId) p.isHost = false;
             return p;
         })
-    });
+    };
 
-    isMigrating = true; // 自分自身もリロード抑止
+    isMigrating = true;
 
     guestConnections.forEach(conn => {
         if (conn.open) conn.send(payload);
     });
 
-    // 3. 自分自身を「ゲスト」に降格させる
     setIsHost(false);
 
-    // 💡 修正点2: タイミングバグの修正
-    // 1.5秒待って、新ホストの開通完了＆他ゲストの離脱を待ってから旧ホストの再接続を行う
     setTimeout(() => {
         console.log("🔄 旧ホストのネットワーククリーンアップを実行します。");
         if (guestConnections) {
             guestConnections.forEach(c => {
                 try { c.close(); } catch(e){}
-            }); // 古い子機チャンネルを全切断
+            });
             guestConnections = [];
         }
         const myProfile = rawPlayerList.find(p => p.id === window.myId);
         const myName = myProfile ? myProfile.name : "旧ホスト";
         
         isMigrating = false;
-        // 旧ホストも古いPeerオブジェクトがクリアされ、安全に新ホストへ子機として接続を試みる
         guestJoinRoom(newHostId, myName);
     }, 1500);
 }

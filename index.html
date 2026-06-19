@@ -2,83 +2,92 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> 🏢 FOUR SALE </title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-    <style>
-        /* IDコピー部分の簡易スタイル */
-        #my-peer-id {
-            cursor: pointer;
-            transition: opacity 0.2s;
-            display: inline-block;
-            margin-bottom: 15px;
-        }
-        #my-peer-id:hover {
-            opacity: 0.7;
-        }
-    </style>
+    <title>フォーセール (For Sale) P2P</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <link rel="stylesheet" href="./style.css">
 </head>
 <body>
 
-    <h1> 🏢 FOUR SALE </h1>
-    <div id="my-peer-id">部屋IDを取得中...</div>
+    <h1>🏢 FOR SALE (フォーセール)</h1>
+    <div id="my-peer-id" style="margin-bottom: 20px; font-weight: bold; background: #16a085; padding: 5px 15px; border-radius: 20px; cursor: pointer;">部屋IDを生成中...</div>
 
-    <div id="setup-container">
+    <div id="setup-container" class="panel-container">
         <h2>ルームセットアップ</h2>
         <div class="input-group">
-            <label for="name-input">あなたのプレイヤー名:</label>
-            <input type="text" id="name-input" value="プレイヤー" maxlength="10">
+            <label for="name-input">あなたの名前:</label>
+            <input type="text" id="name-input" value="プレイヤー">
         </div>
-
-        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #4f5d73;">
-        
-        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-            <button id="be-host-btn">🏠 部屋を作る (ホスト)</button>
-        </div>
-
+        <button id="be-host-btn" class="btn-primary" style="margin-bottom: 15px;">🏠 新しい部屋を作る (ホスト)</button>
+        <hr style="border-color: #2c3e50; margin: 20px 0;">
         <div class="input-group">
-            <label for="room-id-input">友達の部屋ID (数字8桁):</label>
-            <input type="text" id="room-id-input" placeholder="12345678" maxlength="8">
+            <label for="room-id-input">入室する部屋ID (8桁の数字):</label>
+            <input type="text" id="room-id-input" placeholder="例: 12345678" maxlength="8">
         </div>
-        <button id="join-room-btn" class="btn-secondary">🌐 部屋に入る (ゲスト)</button>
+        <button id="join-room-btn" class="btn-secondary">🌐 友達の部屋に入る (ゲスト)</button>
     </div>
 
-    <div id="game-container" style="display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <h2 style="margin:0;">ゲームボード</h2>
-            <button id="leave-room-btn">🚪 部屋を離脱</button>
+    <div id="lobby-container" class="panel-container" style="display: none;">
+        <div class="lobby-header-container">
+            <h2>📋 待機ロビー</h2>
+            <button id="lobby-leave-btn" class="btn-danger">部屋を離脱</button>
         </div>
+        <div id="integrated-custom-settings" style="margin-bottom: 20px;"></div>
+        <h3>👥 参加プレイヤーリスト</h3>
+        <div id="lobby-player-list"></div>
+        <button id="start-game-btn" class="btn-primary" style="display: none; margin-top: 20px; font-size: 1.2rem; padding: 15px;">🎮 ゲーム開始</button>
+    </div>
 
-        <div class="status-panel">
-            <span id="deck-count">山札: --枚</span>
-            <span id="role-display">🟢 待機中</span>
-        </div>
+    <div id="game-container" style="display: none; width: 100%; max-width: 1100px;">
+        <div class="game-board">
+            
+            <div class="game-top-bar">
+                <div id="role-display" class="game-status-text">あなたのアクションを選んでください</div>
+                <div style="display: flex; gap: 5px;">
+                    <button id="submit-bid-btn" class="btn-secondary" style="background:#3498db;">入札</button>
+                    <button id="submit-pass-btn" class="btn-danger">パス</button>
+                    <button id="next-round-btn" class="btn-primary" style="display: none;">⏭️ 次ラウンド</button>
+                    <button id="leave-room-btn" class="btn-danger" style="padding: 6px 12px; font-size:0.85rem;">🚪 離脱</button>
+                </div>
+            </div>
 
-        <div class="player-list-container">
-            <div id="player-list"></div>
-        </div>
+            <div class="game-main-area">
+                
+                <div class="market-and-deck">
+                    <div class="market-container">
+                        <div id="market-title-text" class="market-title">競売にかけられた物件</div>
+                        <div id="card-tracker-list" class="market-cards">
+                            </div>
+                    </div>
+                    <div id="deck-pile-visual" class="deck-pile">
+                        <span style="font-size:0.8rem;">FOR SALE</span>
+                        <div id="deck-count-num" style="font-size: 1.8rem; margin: 5px 0;">25</div>
+                        <span style="font-size:0.7rem;">残り枚数</span>
+                    </div>
+                </div>
 
-        <div id="log-box"></div>
+                <div id="bid-status-board" class="bid-status-board">
+                    </div>
 
-        <h3 id="hand-title" style="display: none; margin-bottom: 5px;">あなたの手札</h3>
-        <div id="card-area" class="card-area"></div>
+                <div class="player-console-area">
+                    <div id="console-info-text" class="console-info-text">
+                        あなたの現在の入札値: 0 k$ | あなたの手持ちコイン: 14 k$ | 入札の最低値: 1 k$
+                    </div>
+                    <div id="card-area">
+                        </div>
+                </div>
 
-        <button id="start-game-btn" style="display: none;">🎮 ゲーム開始</button>
-        <button id="next-round-btn" style="display: none; background: #3498db;">🔄 次のラウンドへ</button>
+            </div>
 
-        <div id="card-tracker-container">
-            <h3 style="font-size: 0.9rem; margin-bottom: 8px;">📊 残りカードトラッカー</h3>
-            <div id="card-tracker-list"></div>
+            <div id="game-side-players" class="game-side-players">
+                </div>
+
+            <div style="grid-column: 1 / span 2; width: 100%;">
+                <div id="game-log"></div>
+            </div>
+
         </div>
     </div>
 
-    <div id="target-modal" class="modal">
-        <div class="modal-content">
-            <div id="target-buttons"></div>
-        </div>
-    </div>
-
-    <script type="module" src="script.js"></script>
+    <script type="module" src="./script.js"></script>
 </body>
 </html>

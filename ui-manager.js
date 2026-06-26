@@ -291,19 +291,52 @@ function renderBidStatusBoard() {
     if (!boardEl) return;
     boardEl.innerHTML = "";
 
+    // game.players の人数（3〜6人）に応じてループを回し、自動的に横3列・縦1〜2行に配置されます
     game.players.forEach(p => {
         const box = document.createElement("div");
         box.className = "bid-box";
+        
+        // 状態に応じたクラス付与
         if (p.id === window.myId) box.classList.add("current-player");
+        if (game.phase === "BID" && p.hasPassed) box.classList.add("passed-out");
 
+        // 1. テキスト情報の構築（誰がいくら出しているか）
+        const textContainer = document.createElement("div");
+        textContainer.style.fontSize = "0.85rem";
+        
         if (game.phase === "BID") {
-            const statusStr = p.hasPassed ? "<span style='color:#7f8c8d;'>(パスアウト)</span>" : "";
-            box.innerHTML = `<strong>${p.name}</strong> は入札した <span style='color:#e67e22; font-weight:bold;'>${p.bid || 0}</span> k$ ${statusStr}`;
+            const statusStr = p.hasPassed ? " <span style='color:#7f8c8d; font-weight:normal;'>(パス)</span>" : "";
+            textContainer.innerHTML = `<strong>${p.name}</strong>: <span style='color:#e67e22; font-weight:bold;'>${p.bid || 0}</span> k$${statusStr}`;
         } else {
-            const hasPlayed = p.hasPassed ? "🟢 提示完了" : "⏳ 選択中...";
-            box.innerHTML = `<strong>${p.name}</strong>: ${hasPlayed}`;
+            const hasPlayed = p.hasPassed ? "<span style='color:#2ecc71; font-weight:bold;'>🟢 提示完了</span>" : "<span style='color:#7f8c8d;'>⏳ 選択中...</span>";
+            textContainer.innerHTML = `<strong>${p.name}</strong>: ${hasPlayed}`;
         }
+        box.appendChild(textContainer);
+
+        // 2. コインを並べるためのプールコンテナの作成
+        const coinPool = document.createElement("div");
+        coinPool.className = "coin-pool";
+        box.appendChild(coinPool);
+
+        // ボードにプレイヤー枠を追加
         boardEl.appendChild(box);
+
+        // 3. BID（競り）フェーズのみ、入札額に応じたコインのフェードイン生成
+        if (game.phase === "BID") {
+            const coinCount = p.bid || 0;
+            
+            for (let i = 0; i < coinCount; i++) {
+                const coin = document.createElement("div");
+                coin.className = "placed-field-coin";
+                coin.innerText = "1k";
+                coinPool.appendChild(coin);
+
+                // 💡 1枚ずつわずかにディレイ（時間差）を作ることで、ジャラジャラと場に出されたような演出になります
+                setTimeout(() => {
+                    coin.classList.add("fade-in-active");
+                }, i * 40); // 1枚ごとに40ミリ秒ずらす
+            }
+        }
     });
 }
 

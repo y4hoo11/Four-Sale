@@ -312,6 +312,91 @@ button:active, .btn-sidebar:active {
     border-color: #f1c40f;
 }
 
+/* ==========================================================================
+   🪙 コインプレイエリア（3〜6人対応：横3×縦1〜2の可変グリッド）
+   ========================================================================== */
+
+#bid-status-board {
+    display: grid;
+    /* 💡 常に横3列に固定。人数が4人以上になると自動的に2行目（下段）が作られます */
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* 各プレイヤーの入札スペース（クラフト調パネル） */
+.bid-box {
+    background: #fdfbf7;
+    border: 1px solid #e1d7c1;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 110px; /* コインが複数枚並んでも型崩れしない高さ */
+    transition: all 0.3s ease;
+}
+
+/* 現在の手番、または自分自身のパネルを強調 */
+.bid-box.current-player {
+    background: #fffdf0;
+    border-color: #f1c40f;
+    box-shadow: 0 4px 10px rgba(241,196,15,0.15);
+}
+
+/* パスアウト（降参）したプレイヤーの場（グレーアウトして参戦状況をパッと見で判別） */
+.bid-box.passed-out {
+    opacity: 0.5;
+    background: #f2f4f4;
+    border-color: #bdc3c7;
+}
+
+/* 🪙 コインを並べるプールコンテナ */
+.coin-pool {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;       /* 枚数が増えたら自動で綺麗に折り返し（2段、3段と対応） */
+    justify-content: flex-start;
+    align-items: center;
+    width: 100%;
+    min-height: 32px;
+}
+
+/* 実際に場に配置されるコイン（既存の丸型コインボタンと調和させた立体デザイン） */
+.placed-field-coin {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f39c12, #f1c40f);
+    border: 2px solid #d35400;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.65rem;
+    color: #ffffff;
+    text-shadow: 1px 1px 0px rgba(0,0,0,0.4);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15), inset 0 1px 2px rgba(255,255,255,0.4);
+    box-sizing: border-box;
+    user-select: none;
+    
+    /* 💫 初期状態：透明かつ少し上から降ってくるような配置（フェードインの準備） */
+    opacity: 0;
+    transform: scale(0.5) translateY(-10px);
+    transition: opacity 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+                transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* 💫 このクラスが付与された瞬間に、滑らかにフェードインしてバウンド着地 */
+.placed-field-coin.fade-in-active {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+}
+
 /* 🕹️ 下部プレイヤー手札・コインコントロールエリア */
 #card-tracker-container {
     background: #f5ede0;

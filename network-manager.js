@@ -566,13 +566,14 @@ function sendStateToSingleConnection(conn) {
 }
 
 // ホストから全ゲストへ状態をブロードキャスト
-export function broadcastState() {
+function broadcastState() {
     if (!isHost) return;
     console.log(`[HOST BROADCAST] 全ゲスト数 (${guestConnections.length}台) へ一斉送信開始`);
     guestConnections.forEach(conn => {
         sendStateToSingleConnection(conn);
     });
 }
+window.broadcastState
 
 // ホスト用：プレイヤーのキック
 export function hostKickPlayer(peerId) {

@@ -573,7 +573,7 @@ function broadcastState() {
         sendStateToSingleConnection(conn);
     });
 }
-window.broadcastState
+window.broadcastState;
 
 // ホスト用：プレイヤーのキック
 export function hostKickPlayer(peerId) {

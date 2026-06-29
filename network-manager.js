@@ -276,20 +276,29 @@ export function handleGuestReceiveData(data) {
         }
 
         if (data.type === "SYNC_STATE") {
-            console.log("🔍 [DEBUG] ゲストが SYNC_STATE 受信処理を開始します...");
+            console.log("🔍 [DEBUG] ゲストが SYNC_STATE を受信しました:", data);
 
-            if (!data.gameState) {
-                throw new Error("パケット内に 'gameState' フィールドが存在しません。");
+            // 💡 1. データの整合性チェック。playersが存在しない、または不完全な場合は即座に再送要求を投げて中断する
+            if (!data.gameState || !Array.isArray(data.gameState.players) || data.gameState.players.length === 0) {
+                console.warn("🚨 [GUEST SYNC ERROR] 受信したプレイヤーデータが不正または未定義です。ホストにデータを再請求します。");
+                if (connToHost && connToHost.open) {
+                    connToHost.send({
+                        type: "REQUEST_SYNC",
+                        playerId: window.myId,
+                        playerName: "GUEST_RETRY_SIGNAL"
+                    });
+                }
+                return; // ❌ ダミーは作らず、このターンのUI更新処理を即座に中止（エラーの先送りを防止）
             }
 
-            // 💡 ui-manager.js 内の画面ロック解除
+            // ui-manager.js 内のフラグ管理関数を呼び出して、向こうの画面ロックを解除させる
             import("./ui-manager.js").then(mod => {
                 if (typeof mod.markFirstSyncComplete === "function") {
                     mod.markFirstSyncComplete();
                 }
-            }).catch(e => console.error("ui-managerのインポート失敗:", e));
+            });
 
-            // 💡 画面表示の切り替え
+            // 画面表示の切り替え
             const setupContainer = document.getElementById("setup-container");
             const lobbyContainer = document.getElementById("lobby-container");
             const gameContainer = document.getElementById("game-container");
@@ -314,23 +323,20 @@ export function handleGuestReceiveData(data) {
             game.highestBid = data.gameState.highestBid || 0;
             game.cardSettings = data.gameState.cardSettings;
             game.drawSettings = data.gameState.drawSettings;
-            game.phase = data.gameState.phase || game.phase; 
+            game.phase = data.gameState.phase || game.phase;
 
             rawPlayerList = data.rawPlayerList;
 
-            // 送られてきたプレイヤーデータを安全に同期する
-            if (data.gameState.players) {
-                if (!Array.isArray(game.players)) {
-                    console.log("[GUEST SYNC] game.players が配列ではないため初期化します");
-                    game.players = [];
-                }
-                game.players.length = 0; 
-                data.gameState.players.forEach(p => {
-                    game.players.push(p);
-                });
+            // 💡 2. 安全かつ厳密なプレイヤーデータのマージ（完全一致同期）
+            if (!Array.isArray(game.players)) {
+                game.players = [];
             }
+            game.players.length = 0; // 配列を一度空にする
+            data.gameState.players.forEach(p => {
+                game.players.push(p); // ホストから送られてきた本物のデータだけを正確に注入
+            });
             
-            console.log("🔄 [同期完了直後] ゲスト側の game.players の中身:", game.players);
+            console.log("🔄 [同期完了直後] ゲスト側の厳密な game.players の中身:", game.players);
 
             if (data.gameState.logMessages) {
                 const logBox = document.getElementById("log-box");
@@ -361,9 +367,7 @@ export function handleGuestReceiveData(data) {
                 }
             }
             
-            // 画面描写の実行
             updateUI();
-            console.log("⚙️ [GUEST SYNC] updateUI() を実行しました。");
         }
     } catch (syncError) {
         console.error("🚨 [GUEST CRITICAL ERROR] データ同期処理中に例外エラーが発生しました:", syncError);
@@ -430,14 +434,11 @@ function handlePlayerDisconnect(peerId) {
     updateUI();
 }
 
-// 特定の1本の接続に対してデータを送る
+// 特定の1本の接続に対してデータを送る（再送要求応答用ヘルパー）
 function sendStateToSingleConnection(conn) {
-    if (!conn || !conn.open) {
-        console.warn(`[HOST SEND WARNING] コネクションが閉じているため送信をスキップしました: ${conn ? conn.peer : "null"}`);
-        return;
-    }
+    if (!conn || !conn.open) return;
 
-    console.log(`[HOST SEND] ターゲット[${conn.peer}] への同期データ構築開始`);
+    console.log(`[HOST SEND] ターゲット[${conn.peer}] への正規データ同期を開始します。`);
 
     let secretViewData = null;
     const targetPlayerInGame = game.players ? game.players.find(p => p.id === conn.peer) : null;
@@ -448,28 +449,32 @@ function sendStateToSingleConnection(conn) {
 
     let safePlayers = [];
     try {
+        // 💡 ゲーム中、またはすでにgame.playersが初期化されている場合
         if (game.players && game.players.length > 0) {
             safePlayers = game.players.map(p => {
                 const currentHand = Array.isArray(p.hand) ? p.hand : [];
                 return {
-                    id: String(p.id || ""),
-                    name: String(p.name || "ゲスト"),
+                    id: String(p.id),
+                    name: String(p.name), // ❌ 代用名義「ゲスト」を廃止。登録された本名を厳密に固定
                     alive: p.alive !== undefined ? Boolean(p.alive) : true,
                     protected: p.protected !== undefined ? Boolean(p.protected) : false,
                     history: Array.isArray(p.history) ? [...p.history] : [],
                     spectator: Boolean(p.spectator),
-                    disconnected: Boolean(p.disconnected), 
+                    disconnected: Boolean(p.disconnected),
                     score: Number(p.score || 0),
                     coins: p.coins !== undefined ? Number(p.coins) : (game.initialCoins || 18),
                     bid: Number(p.bid || 0),
                     hasPassed: Boolean(p.hasPassed),
+                    // 🔒 他人の手札はマスク。自分または離脱プレイヤーのみ公開
                     hand: (p.id === conn.peer || p.disconnected) ? [...currentHand] : currentHand.map(() => 0)
                 };
             });
         } else {
+            // 💡 ゲーム開始前（ロビー待機画面）の場合
+            // ❌「ゲスト」という固定文字での捏造を完全に廃止。rawPlayerList の本名・本物IDと1対1で完全一致させる
             safePlayers = rawPlayerList.map(p => ({
-                id: String(p.id || ""),
-                name: String(p.name || "ゲスト"),
+                id: String(p.id),
+                name: String(p.name),
                 alive: true,
                 protected: false,
                 history: [],
@@ -484,6 +489,7 @@ function sendStateToSingleConnection(conn) {
         }
     } catch (buildError) {
         console.error("🚨 プレイヤーデータ構築中に深刻なエラーが発生しました:", buildError);
+        return; // データに不整合がある場合は、壊れたパケットを送らずに中断
     }
 
     const payload = {
@@ -499,17 +505,16 @@ function sendStateToSingleConnection(conn) {
             logMessages: Array.isArray(game.logMessages) ? [...game.logMessages] : [],
             cardSettings: game.cardSettings ? game.cardSettings : null,
             drawSettings: game.drawSettings ? game.drawSettings : null,
-            players: safePlayers
+            players: safePlayers // ⭕ 厳密に構築された正確な safePlayers を送信
         },
         secretView: secretViewData ? secretViewData : null
     };
 
     try {
-        console.log(`[HOST SEND] 物理パケット送信実行 -> 宛先: ${conn.peer}`, payload);
         conn.send(payload);
     } catch (sendSerializeError) {
-        console.error("🚨 送信失敗。JSONシリアライズフォールバックを実行します:", sendSerializeError);
-        try { conn.send(JSON.stringify(payload)); } catch(e){ console.error("フォールバックも失敗しました:", e); }
+        console.error("🚨 送信失敗。フォールバックを実行します:", sendSerializeError);
+        try { conn.send(JSON.stringify(payload)); } catch(e){}
     }
 }
 

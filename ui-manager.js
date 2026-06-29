@@ -35,40 +35,36 @@ export function hostStartGame() {
     }
 }
 
-// 👑 ホスト専用：ゲームの強制終了（中断）処理
+// 👑 ホスト専用：ゲームの強制終了（中断・無効試合）処理
 export function hostAbortGame() {
     if (!isHost) return;
-    if (!confirm("本当にゲームを強制終了して待機ロビーに戻りますか？\n現在の進行状況はリセットされます。")) return;
+    if (!confirm("本当にゲームを強制終了して待機ロビーに戻りますか？\n現在のプレイデータは破棄されます。")) return;
     
-    // 1. ゲーム進行フラグを折り、フェーズを初期化する
+    // 1. ゲーム進行フラグを折り、各パラメータを初期化
     game.isGameStarted = false;
     game.phase = "BID"; 
     game.market = [];
     game.highestBid = 0;
     game.turnIndex = 0;
     
-    // 2. 各プレイヤーの入札状況やパス状態をロビー用にクリーンアップ
+    // 2. 💡【重要】進行用のプレイヤーデータを完全にクリア
+    // これにより、network-manager.js は自動的に rawPlayerList（初期ロビー名簿）ベースでの同期に切り替わります
     if (game.players) {
-        game.players.forEach(p => {
-            p.bid = 0;
-            p.hasPassed = false;
-            p.hand = []; // 手札をクリア
-        });
+        game.players.length = 0; 
     }
 
     if (typeof game.log === "function") {
-        game.log("🛑 <b>ホストによってゲームが強制終了されました。待機ロビーに戻ります。</b>");
+        game.log("🛑 <b>ホストによってゲームが強制終了されました（無効試合）。ロビーに戻ります。</b>");
     } else if (game.logMessages) {
-        game.logMessages.push("🛑 <b>ホストによってゲームが強制終了されました。待機ロビーに戻ります。</b>");
+        game.logMessages.push("🛑 <b>ホストによってゲームが強制終了されました（無効試合）。ロビーに戻ります。</b>");
     }
 
-    // 3. 📢 【最重要】最新の「game.isGameStarted = false」状態を全ゲストに瞬時にブロードキャスト
+    // 3. 📢 最新の状態を全ゲストにブロードキャスト（ゲスト側も連動してロビーに戻る）
     broadcastState();
     
-    // 4. 自分自身（ホスト）の画面UIをロビーへ戻す
+    // 4. ホスト自身のUIを更新してロビー画面へ切り替え
     updateUI();
 }
-
 export function hostNextRound() {
     if (!isHost) return;
     const currentScores = {};

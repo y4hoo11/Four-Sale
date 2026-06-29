@@ -40,20 +40,32 @@ export function hostAbortGame() {
     if (!isHost) return;
     if (!confirm("本当にゲームを強制終了して待機ロビーに戻りますか？\n現在の進行状況はリセットされます。")) return;
     
+    // 1. ゲーム進行フラグを折り、フェーズを初期化する
     game.isGameStarted = false;
+    game.phase = "BID"; 
+    game.market = [];
+    game.highestBid = 0;
+    game.turnIndex = 0;
     
+    // 2. 各プレイヤーの入札状況やパス状態をロビー用にクリーンアップ
     if (game.players) {
         game.players.forEach(p => {
             p.bid = 0;
             p.hasPassed = false;
+            p.hand = []; // 手札をクリア
         });
     }
 
     if (typeof game.log === "function") {
-        game.log("🛑 ホストによってゲームが強制終了されました。");
+        game.log("🛑 <b>ホストによってゲームが強制終了されました。待機ロビーに戻ります。</b>");
+    } else if (game.logMessages) {
+        game.logMessages.push("🛑 <b>ホストによってゲームが強制終了されました。待機ロビーに戻ります。</b>");
     }
 
+    // 3. 📢 【最重要】最新の「game.isGameStarted = false」状態を全ゲストに瞬時にブロードキャスト
     broadcastState();
+    
+    // 4. 自分自身（ホスト）の画面UIをロビーへ戻す
     updateUI();
 }
 
@@ -567,41 +579,6 @@ export function renderCustomSettingsUI() {
     }
 }
 
-// 👑 ホスト専用：ゲームの強制終了（中断）処理
-export function hostAbortGame() {
-    if (!isHost) return;
-    if (!confirm("本当にゲームを強制終了して待機ロビーに戻りますか？\n現在の進行状況はリセットされます。")) return;
-    
-    // 1. ゲーム進行フラグを折り、フェーズを初期化する
-    game.isGameStarted = false;
-    game.phase = "BID"; 
-    game.market = [];
-    game.highestBid = 0;
-    game.turnIndex = 0;
-    
-    // 2. 各プレイヤーの入札状況やパス状態をロビー用にクリーンアップ
-    if (game.players) {
-        game.players.forEach(p => {
-            p.bid = 0;
-            p.hasPassed = false;
-            p.hand = []; // 手札をクリア
-            // 必要に応じて初期コイン数に戻す場合はここで処理
-            // p.coins = game.initialCoins || 14; 
-        });
-    }
-
-    if (typeof game.log === "function") {
-        game.log("🛑 <b>ホストによってゲームが強制終了されました。待機ロビーに戻ります。</b>");
-    } else if (game.logMessages) {
-        game.logMessages.push("🛑 <b>ホストによってゲームが強制終了されました。待機ロビーに戻ります。</b>");
-    }
-
-    // 3. 📢 【最重要】最新の「game.isGameStarted = false」状態を全ゲストに瞬時にブロードキャスト
-    broadcastState();
-    
-    // 4. 自分自身（ホスト）の画面UIをロビーへ戻す
-    updateUI();
-}
 
 // 互換性維持用の空関数
 export function syncGuestSettingsUI(cardSettings, drawSettings) {}

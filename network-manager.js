@@ -56,11 +56,16 @@ export function handleHostReceiveData(conn, data) {
                 // 【既存プレイヤーの復帰処理】
                 disconnectedPlayer.id = data.id; 
                 disconnectedPlayer.disconnected = false;
+                // 観戦中フラグが残っている場合は解除、または同名再ログインのルールを適用
+                disconnectedPlayer.spectator = game.isGameStarted; 
                 game.log(`🔄 ${data.name} が再接続・同期しました。`);
 
                 if (game.isGameStarted && game.players) {
                     const gp = game.players.find(p => p.name === data.name);
-                    if (gp) gp.id = data.id;
+                    if (gp) {
+                        gp.id = data.id;
+                        gp.disconnected = false;
+                    }
                 }
             } else {
                 // 【新規プレイヤーの追加処理】（同名、または完全な新規）
@@ -76,7 +81,10 @@ export function handleHostReceiveData(conn, data) {
                         counter++;
                     }
 
-                    const isSpectator = game.isGameStarted;
+                    // 💡 【仕様要件】離脱した参加者と同じ名前、またはゲーム中に参加した人は一律で観戦状態にする
+                    // かつ、ゲーム中に入ってきた新規プレイヤーも spectator = true
+                    const isSpectator = game.isGameStarted || rawPlayerList.some(p => p.name === data.name);
+                    
                     rawPlayerList.push({
                         id: data.id,
                         name: finalName, // 被らない安全な名前を適用
@@ -85,8 +93,22 @@ export function handleHostReceiveData(conn, data) {
                         isHost: false, // 確実にゲスト（false）として追加
                         disconnected: false
                     });
+
+                    // 進行中のゲーム配列にも観戦者として追加（次のゲームからシームレスに復帰可能にするため）
+                    if (game.isGameStarted && game.players) {
+                        game.players.push({
+                            id: data.id,
+                            name: isSpectator ? `${finalName}(観戦中)` : finalName,
+                            coins: 0,
+                            hand: [],
+                            score: 0,
+                            spectator: isSpectator,
+                            disconnected: false,
+                            alive: false // 進行中のラウンドでは不参加
+                        });
+                    }
                     
-                    game.log(`👥 ${finalName} が入室しました。`);
+                    game.log(`👥 ${finalName} が${isSpectator ? "観戦者として" : ""}入室しました。`);
                 }
             }
             broadcastState();
@@ -110,6 +132,7 @@ export function handleHostReceiveData(conn, data) {
             break;
 
         case "LEAVE":
+            // 💡 ゲストが能動的に「部屋を離脱」ボタンを押した場合も切断処理へ流す
             handlePlayerDisconnect(conn.peer);
             break;
 
@@ -141,6 +164,7 @@ export function handleGuestReceiveData(data) {
         }
     }
     console.log("=========================================================");
+
     // 💡 ホスト移行命令（HOST_MIGRATION）を受信した場合の処理
     if (data.type === "HOST_MIGRATION") {
         game.log(`🔄 ホストが ${data.newHostName || "新しいホスト"} に移行されます。ネットワークを再構築中...`);
@@ -155,7 +179,7 @@ export function handleGuestReceiveData(data) {
         // 2. 自分が「新ホスト」に指名されていた場合の処理
         if (window.myId === data.newHostId) {
             
-            // 旧ホストから届いた「完全なゲーム状態」を退避（Peerリセットで消えないようにする）
+            // 💡 【最重要バグ修正】すでにパース済みのオブジェクトとして届いているため、再パースせずそのままマージ
             let backupGameState = data.fullGameState;
             let backupPlayerList = data.rawPlayerList;
 
@@ -187,8 +211,9 @@ export function handleGuestReceiveData(data) {
                 // 退避していたゲームデータを自分のgameオブジェクトにマージして完全復元
                 if (backupGameState) {
                     try {
-                        const parsedGame = JSON.parse(backupGameState);
-                        Object.assign(game, parsedGame);
+                        // 💡 もし文字列だった場合のみパースするセーフティガード
+                        const parsed = (typeof backupGameState === "string") ? JSON.parse(backupGameState) : backupGameState;
+                        Object.assign(game, parsed);
                     } catch (e) {
                         console.error("ゲームデータの復元に失敗しました:", e);
                     }
@@ -233,7 +258,7 @@ export function handleGuestReceiveData(data) {
     if (data.type === "SYNC_STATE") {
         console.log("🔍 [DEBUG] ゲストが SYNC_STATE を受信しました:", data);
 
-        // 💡【最重要修正】ui-manager.js 内のフラグ管理関数を呼び出して、向こうの画面ロックを解除させる
+        // 💡 ui-manager.js 内のフラグ管理関数を呼び出して、向こうの画面ロックを解除させる
         import("./ui-manager.js").then(mod => {
             mod.markFirstSyncComplete();
         });
@@ -264,21 +289,18 @@ export function handleGuestReceiveData(data) {
         game.highestBid = data.gameState.highestBid || 0;
         game.cardSettings = data.gameState.cardSettings;
         game.drawSettings = data.gameState.drawSettings;
-        game.phase = data.gameState.phase || game.phase; // phase も念のため同期
+        game.phase = data.gameState.phase || game.phase; // phase も同期
 
         rawPlayerList = data.rawPlayerList;
 
         // 送られてきたプレイヤーデータを安全に同期する
         if (data.gameState.players) {
-            // 配列の初期化構造を壊さないよう、既存の配列があれば中身を入れ替え、なければ代入する
             if (Array.isArray(game.players)) {
-                // 配列の長さをリセットして、ホストから届いた新しいデータで満たす
                 game.players.length = 0; 
                 data.gameState.players.forEach(p => {
                     game.players.push(p);
                 });
             } else {
-                // game.players が最初から配列ではない特殊なオブジェクト（クラス等）だった場合の安全弁
                 if (typeof game.players === "object" && game.players !== null) {
                     Object.assign(game.players, data.gameState.players);
                 } else {
@@ -287,7 +309,6 @@ export function handleGuestReceiveData(data) {
             }
         }
         
-        // 💡 【デバッグログを追加】正しくゲストのgame.playersに入ったかチェック
         console.log("🔄 [同期完了直後] ゲスト側の game.players の中身:", game.players);
 
         if (data.gameState.logMessages) {
@@ -330,24 +351,42 @@ function handlePlayerDisconnect(peerId) {
     const leftPlayer = rawPlayerList.find(p => p.id === peerId);
     if (!leftPlayer) return;
 
+    // 💡 【仕様要件】離脱したプレイヤーのフラグ管理
     leftPlayer.disconnected = true;
-    game.log(`🚪 ${leftPlayer.name} が退室（接続切れ）しました。`);
+    game.log(`🚪 ${leftPlayer.name} が退室（離脱）しました。`);
     
     guestConnections = guestConnections.filter(c => c.peer !== peerId);
 
     if (game.isGameStarted && game.players) {
         const pInGame = game.players.find(p => p.id === peerId);
         if (pInGame) {
+            // UIマネージャー側で赤く染めるため、disconnectedプロパティをゲーム側プレイヤーにも付与
+            pInGame.disconnected = true; 
             pInGame.alive = false;
             pInGame.hand = [];
+            pInGame.hasPassed = true; // 競りフェーズをストップさせないよう自動パス化
         }
-        const alives = game.players.filter(p => p.alive && !p.spectator);
-        if (alives.length <= 1 || game.deck.length === 0) {
+
+        // 💡 【仕様要件】プレイヤーが減った（離脱した）場合、場に表示・配布するカード枚数を減らす連動ロジック
+        // 残った有効なアクティブプレイヤーの数を数える
+        const activeCount = game.players.filter(p => !p.disconnected && !p.spectator).length;
+        console.log(`📊 残りのアクティブプレイヤー数: ${activeCount}人 (これに伴い次のラウンドから場の配布カード数が自動的に減ります)`);
+
+        // もし離脱したプレイヤーが現在の手番プレイヤーだった場合、ターンを次に進める
+        if (game.players[game.turnIndex]?.id === peerId) {
+            if (typeof game.nextTurn === "function") game.nextTurn();
+        }
+
+        const alives = game.players.filter(p => p.alive && !p.spectator && !p.disconnected);
+        if (alives.length <= 1 || (game.deck && game.deck.length === 0)) {
             if (typeof game.endRound === "function") game.endRound();
         }
+    } else {
+        // ゲーム開始前のカスタム/スタート待機画面であれば、名簿から完全に削除して詰める
+        rawPlayerList = rawPlayerList.filter(p => p.id !== peerId);
     }
 
-    // 💡 ホストが突然切断された場合の自動マイグレーション処理
+    // 💡 ホストが突然切断・離脱された場合の自動マイグレーション処理
     if (leftPlayer.isHost) {
         leftPlayer.isHost = false;
         const nextHost = rawPlayerList.find(p => !p.disconnected);
@@ -381,12 +420,10 @@ function sendStateToSingleConnection(conn) {
         delete targetPlayerInGame.pendingSecretView;
     }
 
-    // 💡【超堅牢化】エラーで送信がちぎれるのを防ぐため、プレイヤーリストを完全に安全に事前ビルド
     let safePlayers = [];
     try {
         if (game.players && game.players.length > 0) {
             safePlayers = game.players.map(p => {
-                // 手札配列の安全な確保（undefined や null なら空配列にする）
                 const currentHand = Array.isArray(p.hand) ? p.hand : [];
                 return {
                     id: String(p.id || ""),
@@ -395,12 +432,13 @@ function sendStateToSingleConnection(conn) {
                     protected: p.protected !== undefined ? Boolean(p.protected) : false,
                     history: Array.isArray(p.history) ? [...p.history] : [],
                     spectator: Boolean(p.spectator),
+                    disconnected: Boolean(p.disconnected), // 離脱状態を伝播
                     score: Number(p.score || 0),
                     coins: p.coins !== undefined ? Number(p.coins) : (game.initialCoins || 18),
                     bid: Number(p.bid || 0),
                     hasPassed: Boolean(p.hasPassed),
-                    // 🔒 安全にマスク処理（currentHand が空ならエラーにならない）
-                    hand: (p.id === conn.peer) ? [...currentHand] : currentHand.map(() => 0)
+                    // 🔒 他人の手札は0にマスク。ただし離脱したプレイヤーのカードは公開または空にする
+                    hand: (p.id === conn.peer || p.disconnected) ? [...currentHand] : currentHand.map(() => 0)
                 };
             });
         } else {
@@ -411,6 +449,7 @@ function sendStateToSingleConnection(conn) {
                 protected: false,
                 history: [],
                 spectator: Boolean(p.spectator),
+                disconnected: Boolean(p.disconnected),
                 score: Number(p.score || 0),
                 coins: Number(game.initialCoins || 18),
                 bid: 0,
@@ -422,11 +461,9 @@ function sendStateToSingleConnection(conn) {
         console.error("🚨 プレイヤーデータ構築中に深刻なエラーが発生しました:", buildError);
     }
 
-    // 💡 クラスインスタンス由来の道連れ消滅を防ぐため、
-    // gameState全体を完全にプレーンなオブジェクト（ただの連想配列）としてゼロから組み立てる
     const payload = {
         type: "SYNC_STATE",
-        rawPlayerList: JSON.parse(JSON.stringify(rawPlayerList)), // 完全なディープコピー
+        rawPlayerList: rawPlayerList, 
         gameState: {
             isGameStarted: Boolean(game.isGameStarted),
             deck: Array.isArray(game.deck) ? [...game.deck] : [],
@@ -435,27 +472,19 @@ function sendStateToSingleConnection(conn) {
             highestBid: Number(game.highestBid || 0),
             phase: String(game.phase || "BID"),
             logMessages: Array.isArray(game.logMessages) ? [...game.logMessages] : [],
-            // クラスオブジェクトが混入しやすい設定まわりも安全にコピー
-            cardSettings: game.cardSettings ? JSON.parse(JSON.stringify(game.cardSettings)) : null,
-            drawSettings: game.drawSettings ? JSON.parse(JSON.stringify(game.drawSettings)) : null,
-            // 先ほど事前ビルドした、100%安全なプレイヤー配列
+            cardSettings: game.cardSettings ? game.cardSettings : null,
+            drawSettings: game.drawSettings ? game.drawSettings : null,
             players: safePlayers
         },
-        secretView: secretViewData ? JSON.parse(JSON.stringify(secretViewData)) : null
+        secretView: secretViewData ? secretViewData : null
     };
 
-    // 🔬 【最終送信テスト】パケット全体のシリアライズが本当に成功するかチェック
     try {
-        const finalCheckJson = JSON.stringify(payload);
-        console.log("✈️ 【ホスト送信直前】パケット全体のシリアライズに完全成功しました！文字数:", finalCheckJson.length);
-        
-        // 💡 確実に文字化（JSON化）して送ることで、PeerJSの内部シリアライズによる消失バグを完全にすり抜ける
-        conn.send(finalCheckJson);
+        // 💡 【重要修正】 serialization: 'json' 設定時のため、二重シリアライズを避けプレーンオブジェクトのまま送信
+        conn.send(payload);
     } catch (sendSerializeError) {
-        console.error("🚨 致命的：パケット全体の送信（JSON化）に失敗しました。原因:", sendSerializeError);
-        
-        // 万が一のフォールバック（生のまま送る）
-        try { conn.send(payload); } catch(e){}
+        console.error("🚨 送信失敗。フォールバックを実行します:", sendSerializeError);
+        try { conn.send(JSON.stringify(payload)); } catch(e){}
     }
 }
 
@@ -504,19 +533,23 @@ export function hostTransferAuthority(peerId) {
 
 // 部屋を離脱
 export function leaveRoom() {
+    // 💡 【仕様要件】カスタム＆スタート待機画面でもゲーム中と同じく正常に離脱できるように統合
     if (isHost) {
         const nextHost = rawPlayerList.find(p => p.id !== window.myId && !p.disconnected);
         if (nextHost) {
-            transferHostPrivilege(nextHost.id);
-            return;
+            if (confirm(`ホストを離脱します。権限を ${nextHost.name} へ譲渡しますか？`)) {
+                transferHostPrivilege(nextHost.id);
+                return;
+            }
         }
         guestConnections.forEach(conn => {
             if (conn.open) conn.close();
         });
     } else {
         if (connToHost && connToHost.open) {
-            connToHost.send({ type: "LEAVE" });
-            connToHost.close();
+            // ホストへLEAVEパケットを送信して、ホスト側の名簿から正常離脱させる
+            connToHost.send({ type: "LEAVE", playerId: window.myId });
+            setTimeout(() => { try { connToHost.close(); } catch(e){} }, 100);
         }
     }
     setTimeout(() => {
@@ -657,7 +690,7 @@ export function guestJoinRoom(targetRoomId, myName) {
     });
 }
 
-// 改善されたサーバー待ち受け処理
+// サーバー待ち受け処理
 window.activateHostMode = function() {
     const activePeer = window.peer || peer;
     if (!activePeer) return;
@@ -689,13 +722,25 @@ export function transferHostPrivilege(newHostId) {
 
     game.log(`🔄 ホスト権限を ${targetName} へ移行する手続きを開始しました...`);
 
-    const fullGameState = JSON.stringify(game);
+    // 💡 【重要バグの完全修正】二重文字列化を避けるため、プレーンな生オブジェクトのまま引き渡す
+    const rawStateObject = {
+        isGameStarted: Boolean(game.isGameStarted),
+        deck: Array.isArray(game.deck) ? [...game.deck] : [],
+        market: Array.isArray(game.market) ? [...game.market] : [],
+        turnIndex: Number(game.turnIndex || 0),
+        highestBid: Number(game.highestBid || 0),
+        phase: String(game.phase || "BID"),
+        logMessages: Array.isArray(game.logMessages) ? [...game.logMessages] : [],
+        cardSettings: game.cardSettings ? game.cardSettings : null,
+        drawSettings: game.drawSettings ? game.drawSettings : null,
+        players: game.players ? game.players : []
+    };
 
     const payload = {
         type: "HOST_MIGRATION",
         newHostId: newHostId,
         newHostName: targetName,
-        fullGameState: fullGameState, 
+        fullGameState: rawStateObject, // ❌ JSON.stringify(game) を廃止して生オブジェクトを配置
         rawPlayerList: rawPlayerList.map(p => {
             if (p.id === newHostId) p.isHost = true;
             if (p.id === window.myId) p.isHost = false;
@@ -706,7 +751,7 @@ export function transferHostPrivilege(newHostId) {
     isMigrating = true;
 
     guestConnections.forEach(conn => {
-        if (conn.open) conn.send(payload);
+        if (conn.open) conn.send(payload); // 自動的にライブラリ側で綺麗にJSONシリアライズされます
     });
 
     setIsHost(false);

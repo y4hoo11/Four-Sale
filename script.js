@@ -63,9 +63,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // 各ボタンへのイベント紐付け
     document.getElementById("be-host-btn")?.addEventListener("click", beHost);
     document.getElementById("join-room-btn")?.addEventListener("click", joinRoom);
-    document.getElementById("leave-room-btn")?.addEventListener("click", leaveRoom);
+    // 待機ロビーとゲーム内、両方の離脱ボタンに処理を登録する
+    const handleLeave = () => {
+        leaveRoom();
+        // 離脱時はログイン情報をクリアしてUIを初期化する
+        window.myId = null; 
+        updateUI();
+    };
+    document.getElementById("lobby-leave-btn")?.addEventListener("click", handleLeave);
+    document.getElementById("leave-room-btn")?.addEventListener("click", handleLeave);
     document.getElementById("start-game-btn")?.addEventListener("click", hostStartGame);
     document.getElementById("next-round-btn")?.addEventListener("click", hostNextRound);
+});
 });
 
 // 👑 ホストとしての接続待ち受けを起動する共通関数

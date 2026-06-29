@@ -1,18 +1,14 @@
 // ui-manager.js
 import { game } from "./game-logic.js";
 import { isHost, rawPlayerList, broadcastState, hostKickPlayer, hostTransferAuthority, connToHost } from "./network-manager.js";
-
 // 現在選択されている入札用の追加コイン枚数
 let currentSelectedCoins = 0;
-
 // ゲストがホストから最初のデータ同期を完了したかどうかのフラグ
 let isFirstSyncReceived = false;
-
 // ゲスト側でデータを受信したときに呼び出す同期完了通知関数
 export function markFirstSyncComplete() {
     isFirstSyncReceived = true;
 }
-
 // 物件の絵文字をNoごとに決定するヘルパー
 function getCardEmoji(val) {
     if (val <= 5) return "🧻"; 
@@ -22,7 +18,6 @@ function getCardEmoji(val) {
     if (val <= 25) return "🏰"; 
     return "🚀"; 
 }
-
 export function hostStartGame() {
     if (!isHost) return;
     const success = game.initRound(rawPlayerList);
@@ -34,46 +29,30 @@ export function hostStartGame() {
         updateUI();
     }
 }
-
-// 👑 ホスト専用：ゲームの強制終了（中断・無効試合）処理
+// 👑 ホスト専用：ゲームの強制終了（中断）処理
 export function hostAbortGame() {
     if (!isHost) return;
-    if (!confirm("本当にゲームを強制終了して待機ロビーに戻りますか？\n現在のプレイデータは破棄されます。")) return;
-    
-    // 1. ゲーム進行フラグを折り、各パラメータを初期化
+    if (!confirm("本当にゲームを強制終了して待機ロビーに戻りますか？\n現在の進行状況はリセットされます。")) return;
     game.isGameStarted = false;
-    game.phase = "BID"; 
-    game.market = [];
-    game.highestBid = 0;
-    game.turnIndex = 0;
-    
-    // 2. 💡【重要】進行用のプレイヤーデータを完全にクリア
-    // これにより、network-manager.js は自動的に rawPlayerList（初期ロビー名簿）ベースでの同期に切り替わります
     if (game.players) {
-        game.players.length = 0; 
+        game.players.forEach(p => {
+            p.bid = 0;
+            p.hasPassed = false;
+        });
     }
-
     if (typeof game.log === "function") {
-        game.log("🛑 <b>ホストによってゲームが強制終了されました（無効試合）。ロビーに戻ります。</b>");
-    } else if (game.logMessages) {
-        game.logMessages.push("🛑 <b>ホストによってゲームが強制終了されました（無効試合）。ロビーに戻ります。</b>");
+        game.log("🛑 ホストによってゲームが強制終了されました。");
     }
-
-    // 3. 📢 最新の状態を全ゲストにブロードキャスト（ゲスト側も連動してロビーに戻る）
     broadcastState();
-    
-    // 4. ホスト自身のUIを更新してロビー画面へ切り替え
     updateUI();
 }
 export function hostNextRound() {
     if (!isHost) return;
     const currentScores = {};
     game.players.forEach(p => { currentScores[p.id] = p.score; });
-    
     rawPlayerList.forEach(p => {
         p.score = currentScores[p.id] || 0;
     });
-
     const success = game.initRound(rawPlayerList);
     if (success) {
         const nextBtn = document.getElementById("next-round-btn");
@@ -83,12 +62,10 @@ export function hostNextRound() {
         updateUI();
     }
 }
-
 export function updateUI() {
     const setupContainer = document.getElementById("setup-container");
     const lobbyContainer = document.getElementById("lobby-container");
     const gameContainer = document.getElementById("game-container");
-
     // 0. まだ自分のID（ログイン情報）がない場合は初期画面
     if (!window.myId) {
         if (setupContainer) setupContainer.style.display = "block";
@@ -96,10 +73,8 @@ export function updateUI() {
         if (gameContainer) gameContainer.style.display = "none";
         return;
     }
-
     // ログイン済み：セットアップ画面を隠す
     if (setupContainer) setupContainer.style.display = "none";
-
     // 1. 画面表示の排た制御
     // ゲストの場合：初回同期データが届くまではロビー画面を維持（チラつき防止）
     if (!isHost && !isFirstSyncReceived) {
@@ -115,12 +90,9 @@ export function updateUI() {
             if (gameContainer) gameContainer.style.display = "none";
         }
     }
-
     // 2. 山札（残り枚数）の描画
     const deckCountNum = document.getElementById("deck-count-num");
-    const deckPileVisual = document.getElementById("deck-pile-visual");
-    if (deckCountNum && deckPileVisual) {
-        if (game.isGameStarted && game.deck) {
+    const deckPileVisual = document.getElementById("deck-pile-visual");    if (deckCountNum && deckPileVisual) {        if (game.isGameStarted && game.deck) {
             deckCountNum.innerText = game.deck.length;
             deckPileVisual.style.background = game.phase === "BID" ? "linear-gradient(135deg, #27ae60, #2ecc71)" : "linear-gradient(135deg, #3498db, #2980b9)";
         } else {
@@ -344,18 +316,6 @@ function renderBidStatusBoard() {
                     coin.classList.add("fade-in-active");
                 }, i * 40); // 1枚ごとに40ミリ秒ずらす
             }
-        }
-
-        if (p.disconnected) {
-            card.style.backgroundColor = "#ffcccc"; // 離脱したプレイヤーカードを赤く
-            card.style.borderColor = "#ff0000";
-        }
-
-        // 例：プレイヤーの「場」（中央の競りスペースなど）の出力部
-        const field = document.getElementById(`player-field-${p.id}`);
-        if (field && p.disconnected) {
-            field.style.backgroundColor = "#ffe6e6"; // 離脱したプレイヤーの場を赤く
-            field.style.border = "2px dashed #ff4d4d";
         }
     });
 }
@@ -586,7 +546,6 @@ export function renderCustomSettingsUI() {
         if (turnInput) turnInput.disabled = false;
     }
 }
-
 
 // 互換性維持用の空関数
 export function syncGuestSettingsUI(cardSettings, drawSettings) {}

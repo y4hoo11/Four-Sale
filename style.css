@@ -1,14 +1,15 @@
 /* ==========================================================================
-   🧱 共通基盤・全体背景（明るい木目・クラフト風デザイン）
+   🧱 全体背景の調整（デフォルト背景を少し白く、マイルドに）
    ========================================================================== */
 body {
     font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
-    background-color: #e0ca9d;
+    /* 元の強い茶色系から、少し白を混ぜたマイルドなライトクラフト調へ変更 */
+    background-color: #ebdcb9; 
     background-image: 
-        linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px),
-        linear-gradient(0deg, rgba(0,0,0,0.06) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,0,0,0.04) 2px, transparent 2px),
-        linear-gradient(to bottom, #ebd9b4, #d1b782);
+        linear-gradient(90deg, rgba(255,255,255,0.25) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.02) 2px, transparent 2px),
+        linear-gradient(to bottom, #f3e6c9, #dec89a);
     background-size: 80px 160px, 80px 160px, 40px 160px, 100% 100%;
     color: #2c3e50; 
     margin: 0;
@@ -325,33 +326,34 @@ button:active, .btn-sidebar:active {
     box-sizing: border-box;
 }
 
-/* 各プレイヤーの入札スペース（クラフト調パネル） */
 .bid-box {
-    background: #fdfbf7;
-    border: 1px solid #e1d7c1;
+    /* 💡 背景を不透明なベージュから、背後が微かに透ける薄透明の白（rgba）に */
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(4px); /* モダンブラウザで少し後ろをぼかす上品な演出 */
+    border: 1px solid rgba(225, 215, 193, 0.8);
     padding: 12px;
     border-radius: 8px;
     font-size: 0.9rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    box-shadow: 0 4px 6px rgba(139, 69, 19, 0.05);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    min-height: 110px; /* コインが複数枚並んでも型崩れしない高さ */
+    min-height: 110px; 
     transition: all 0.3s ease;
 }
 
-/* 現在の手番、または自分自身のパネルを強調 */
+/* 現在の手番、または自分自身のパネルを強調（薄透明の黄色ゴールド） */
 .bid-box.current-player {
-    background: #fffdf0;
+    background: rgba(255, 253, 235, 0.85);
     border-color: #f1c40f;
-    box-shadow: 0 4px 10px rgba(241,196,15,0.15);
+    box-shadow: 0 4px 12px rgba(241,196,15,0.2);
 }
 
-/* パスアウト（降参）したプレイヤーの場（グレーアウトして参戦状況をパッと見で判別） */
+/* パスアウトしたプレイヤーの場 */
 .bid-box.passed-out {
-    opacity: 0.5;
-    background: #f2f4f4;
+    opacity: 0.4;
+    background: rgba(242, 244, 244, 0.5);
     border-color: #bdc3c7;
 }
 
@@ -366,25 +368,26 @@ button:active, .btn-sidebar:active {
     min-height: 32px;
 }
 
-/* 実際に場に配置されるコイン（既存の丸型コインボタンと調和させた立体デザイン） */
+/* 🪙 場に配置されるコイン（銀貨・シルバーデザイン） */
 .placed-field-coin {
     width: 30px;
     height: 30px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #f39c12, #f1c40f);
-    border: 2px solid #d35400;
+    /* 💡 オレンジから美しい立体感のあるシルバーグラデーションへ変更 */
+    background: linear-gradient(135deg, #f2f4f4 0%, #bdc3c7 50%, #95a5a6 100%);
+    border: 2px solid #7f8c8d;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: bold;
     font-size: 0.65rem;
-    color: #ffffff;
-    text-shadow: 1px 1px 0px rgba(0,0,0,0.4);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.15), inset 0 1px 2px rgba(255,255,255,0.4);
+    color: #2c3e50; /* 文字色もコントラストのために濃い色に */
+    text-shadow: 1px 1px 0px rgba(255,255,255,0.8);
+    box-shadow: 0 3px 5px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.6);
     box-sizing: border-box;
     user-select: none;
     
-    /* 💫 初期状態：透明かつ少し上から降ってくるような配置（フェードインの準備） */
+    /* 初期状態（フェードイン用） */
     opacity: 0;
     transform: scale(0.5) translateY(-10px);
     transition: opacity 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), 

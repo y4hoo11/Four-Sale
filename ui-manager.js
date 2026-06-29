@@ -345,6 +345,18 @@ function renderBidStatusBoard() {
                 }, i * 40); // 1枚ごとに40ミリ秒ずらす
             }
         }
+
+        if (p.disconnected) {
+            card.style.backgroundColor = "#ffcccc"; // 離脱したプレイヤーカードを赤く
+            card.style.borderColor = "#ff0000";
+        }
+
+        // 例：プレイヤーの「場」（中央の競りスペースなど）の出力部
+        const field = document.getElementById(`player-field-${p.id}`);
+        if (field && p.disconnected) {
+            field.style.backgroundColor = "#ffe6e6"; // 離脱したプレイヤーの場を赤く
+            field.style.border = "2px dashed #ff4d4d";
+        }
     });
 }
 

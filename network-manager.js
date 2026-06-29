@@ -179,9 +179,9 @@ export function handleGuestReceiveData(data) {
         // 2. 自分が「新ホスト」に指名されていた場合の処理
         if (window.myId === data.newHostId) {
             
-            // 💡 【最重要バグ修正】すでにパース済みのオブジェクトとして届いているため、再パースせずそのままマージ
-            let backupGameState = data.fullGameState;
-            let backupPlayerList = data.rawPlayerList;
+            // 💡 送信されてきたデータを安全にディープコピーして退避
+            let backupGameState = data.fullGameState ? JSON.parse(JSON.stringify(data.fullGameState)) : null;
+            let backupPlayerList = Array.isArray(data.rawPlayerList) ? [...data.rawPlayerList] : [];
 
             game.log("👑 あなたが新しいホストに指名されました。ホストサーバーを起動しています...");
 
@@ -198,20 +198,20 @@ export function handleGuestReceiveData(data) {
                 peer = null;
             }
 
-            // 旧ホストが使っていた「同じ部屋ID」を自分が引き継いでPeerを再生成する
+            // 旧ホストが指定した「新しいホストID」でPeerを再生成
             window.peer = new Peer(data.newHostId, peerOptions); 
             peer = window.peer; // ローカル変数側も同期
 
-            window.peer.on("open", (id) => {
-                window.myId = id;
+            // ⚠️ コールバックの引数名を「openedId」に変更し、外側のスコープとの競合を防ぐ
+            window.peer.on("open", (openedId) => {
+                window.myId = openedId;
                 setIsHost(true);
                 isMigrating = false;
-                displayMyRoomId(id);
+                displayMyRoomId(openedId);
 
                 // 退避していたゲームデータを自分のgameオブジェクトにマージして完全復元
                 if (backupGameState) {
                     try {
-                        // 💡 もし文字列だった場合のみパースするセーフティガード
                         const parsed = (typeof backupGameState === "string") ? JSON.parse(backupGameState) : backupGameState;
                         Object.assign(game, parsed);
                     } catch (e) {
@@ -219,12 +219,25 @@ export function handleGuestReceiveData(data) {
                     }
                 }
                 
-                // ルーム名簿を引き継ぎ、自分をホストとしてマーク
+                // ルーム名簿を引き継ぎ
                 rawPlayerList = backupPlayerList;
-                const me = rawPlayerList.find(p => p.id === window.myId);
+                
+                // 💡 新しいID（openedId）ではなく、移行元のリストに存在するはずのIDで自分を探す
+                const me = rawPlayerList.find(p => p.id === openedId);
                 if (me) {
                     me.isHost = true;
                     me.disconnected = false;
+                } else {
+                    // 万が一見つからなかった場合のフォールバック
+                    console.warn("名簿内に自分の新しいIDが見つからなかったため、強制追加します。");
+                    rawPlayerList.push({
+                        id: openedId,
+                        name: data.newHostName,
+                        spectator: false,
+                        score: 0,
+                        isHost: true,
+                        disconnected: false
+                    });
                 }
 
                 // 新ホストとしての「子機からの接続待ち受け（サーバーモード）」を起動
@@ -722,7 +735,6 @@ export function transferHostPrivilege(newHostId) {
 
     game.log(`🔄 ホスト権限を ${targetName} へ移行する手続きを開始しました...`);
 
-    // 💡 【重要バグの完全修正】二重文字列化を避けるため、プレーンな生オブジェクトのまま引き渡す
     const rawStateObject = {
         isGameStarted: Boolean(game.isGameStarted),
         deck: Array.isArray(game.deck) ? [...game.deck] : [],
@@ -736,22 +748,28 @@ export function transferHostPrivilege(newHostId) {
         players: game.players ? game.players : []
     };
 
+    // 💡 既存の配列を書き換えず、送信用の新しい配列を map で作成する
+    const migratedPlayerList = rawPlayerList.map(p => {
+        return {
+            ...p,
+            isHost: p.id === newHostId,
+            // 旧ホスト（自分）はホストフラグを折るが、disconnectedにはしない（あとでゲストとして入り直すため）
+            disconnected: p.id === window.myId ? false : p.disconnected 
+        };
+    });
+
     const payload = {
         type: "HOST_MIGRATION",
         newHostId: newHostId,
         newHostName: targetName,
-        fullGameState: rawStateObject, // ❌ JSON.stringify(game) を廃止して生オブジェクトを配置
-        rawPlayerList: rawPlayerList.map(p => {
-            if (p.id === newHostId) p.isHost = true;
-            if (p.id === window.myId) p.isHost = false;
-            return p;
-        })
+        fullGameState: rawStateObject,
+        rawPlayerList: migratedPlayerList // 👈 安全な配列を代入
     };
 
     isMigrating = true;
 
     guestConnections.forEach(conn => {
-        if (conn.open) conn.send(payload); // 自動的にライブラリ側で綺麗にJSONシリアライズされます
+        if (conn.open) conn.send(payload);
     });
 
     setIsHost(false);

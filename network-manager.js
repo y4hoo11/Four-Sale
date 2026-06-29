@@ -161,8 +161,36 @@ export function handleHostReceiveData(conn, data) {
     }
 }
 
-// ゲストがデータを受信した時の処理
-export function handleGuestReceiveData(data) {
+// ゲストがデータを受信した時のハンドラ（デバッグログ強化版）
+function handleGuestReceiveData(data) {
+    if (!data) return;
+
+    // 🔍 STEP 5: 物理的にパケットが届いた瞬間のデータ構造をチェック
+    if (data.type === "SYNC_STATE") {
+        console.log("\n--- 📥 [GUEST RECEIVE START] ---");
+        console.log("📢 [STEP 5] 受信した生の data.gameState の構造:", {
+            dataExists: !!data,
+            gameStateExists: !!data.gameState,
+            playersPropertyExists: data.gameState ? ('players' in data.gameState) : false,
+            playersValue: data.gameState ? data.gameState.players : "gameState自体がない",
+            rawPlayerListLength: data.rawPlayerList ? data.rawPlayerList.length : "無し"
+        });
+        
+        // 🚨 既存の厳格チェック
+        if (!data.gameState || !data.gameState.players) {
+            console.warn("🚨 [STEP 5 DETECTED] players が undefined のため処理を中断し再請求します。");
+            if (connToHost && connToHost.open) {
+                connToHost.send({
+                    type: "REQUEST_SYNC",
+                    playerId: window.myId,
+                    playerName: "GUEST_RETRY_SIGNAL"
+                });
+            }
+            console.log("--- 📥 [GUEST RECEIVE END (ABORTED)] ---\n");
+            return; 
+        }
+        
+        // --- (ここから下は既存のUI表示切り替えやゲームステート代入処理が続きます) ---
     if (isHost) return;
 
     // 🔬 【ゲスト側・受信直後デバッグ】
@@ -434,11 +462,11 @@ function handlePlayerDisconnect(peerId) {
     updateUI();
 }
 
-// 特定の1本の接続に対してデータを送る（再送要求応答用ヘルパー）
+// 特定の1本の接続に対してデータを送る（デバッグログ完全配置版）
 function sendStateToSingleConnection(conn) {
     if (!conn || !conn.open) return;
 
-    console.log(`[HOST SEND] ターゲット[${conn.peer}] への正規データ同期を開始します。`);
+    console.log(`\n--- 📤 [HOST SEND START] TO: ${conn.peer} ---`);
 
     let secretViewData = null;
     const targetPlayerInGame = game.players ? game.players.find(p => p.id === conn.peer) : null;
@@ -447,31 +475,39 @@ function sendStateToSingleConnection(conn) {
         delete targetPlayerInGame.pendingSecretView;
     }
 
+    // 🔍 STEP 1: 処理開始時点でのゲーム状態の確認
+    console.log("📢 [STEP 1] 元データの存在チェック:", {
+        isGameStarted: game.isGameStarted,
+        gamePlayersExists: !!game.players,
+        gamePlayersLength: game.players ? game.players.length : 0,
+        rawPlayerListLength: rawPlayerList ? rawPlayerList.length : 0
+    });
+
     let safePlayers = [];
-    try {
-        // 💡 ゲーム中、またはすでにgame.playersが初期化されている場合
-        if (game.players && game.players.length > 0) {
-            safePlayers = game.players.map(p => {
-                const currentHand = Array.isArray(p.hand) ? p.hand : [];
-                return {
-                    id: String(p.id),
-                    name: String(p.name), // ❌ 代用名義「ゲスト」を廃止。登録された本名を厳密に固定
-                    alive: p.alive !== undefined ? Boolean(p.alive) : true,
-                    protected: p.protected !== undefined ? Boolean(p.protected) : false,
-                    history: Array.isArray(p.history) ? [...p.history] : [],
-                    spectator: Boolean(p.spectator),
-                    disconnected: Boolean(p.disconnected),
-                    score: Number(p.score || 0),
-                    coins: p.coins !== undefined ? Number(p.coins) : (game.initialCoins || 18),
-                    bid: Number(p.bid || 0),
-                    hasPassed: Boolean(p.hasPassed),
-                    // 🔒 他人の手札はマスク。自分または離脱プレイヤーのみ公開
-                    hand: (p.id === conn.peer || p.disconnected) ? [...currentHand] : currentHand.map(() => 0)
-                };
-            });
-        } else {
-            // 💡 ゲーム開始前（ロビー待機画面）の場合
-            // ❌「ゲスト」という固定文字での捏造を完全に廃止。rawPlayerList の本名・本物IDと1対1で完全一致させる
+
+    // 🔍 STEP 2: 条件分岐とデータの詰め込み処理の追跡
+    if (game.isGameStarted && game.players && game.players.length > 0) {
+        console.log("📌 [STEP 2] 分岐:『ゲーム中』のプレイヤーデータを構築します");
+        safePlayers = game.players.map(p => {
+            const currentHand = Array.isArray(p.hand) ? p.hand : [];
+            return {
+                id: String(p.id),
+                name: String(p.name),
+                alive: p.alive !== undefined ? Boolean(p.alive) : true,
+                protected: p.protected !== undefined ? Boolean(p.protected) : false,
+                history: Array.isArray(p.history) ? [...p.history] : [],
+                spectator: Boolean(p.spectator),
+                disconnected: Boolean(p.disconnected),
+                score: Number(p.score || 0),
+                coins: p.coins !== undefined ? Number(p.coins) : (game.initialCoins || 18),
+                bid: Number(p.bid || 0),
+                hasPassed: Boolean(p.hasPassed),
+                hand: (p.id === conn.peer || p.disconnected) ? [...currentHand] : currentHand.map(() => 0)
+            };
+        });
+    } else {
+        console.log("📌 [STEP 2] 分岐:『ゲーム開始前（ロビー）』のプレイヤーデータを構築します");
+        if (Array.isArray(rawPlayerList)) {
             safePlayers = rawPlayerList.map(p => ({
                 id: String(p.id),
                 name: String(p.name),
@@ -480,21 +516,24 @@ function sendStateToSingleConnection(conn) {
                 history: [],
                 spectator: Boolean(p.spectator),
                 disconnected: Boolean(p.disconnected),
-                score: Number(p.score || 0),
+                score: 0,
                 coins: Number(game.initialCoins || 18),
                 bid: 0,
                 hasPassed: false,
                 hand: []
             }));
+        } else {
+            console.error("🚨 [STEP 2 ERROR] rawPlayerList が配列ではありません！");
         }
-    } catch (buildError) {
-        console.error("🚨 プレイヤーデータ構築中に深刻なエラーが発生しました:", buildError);
-        return; // データに不整合がある場合は、壊れたパケットを送らずに中断
     }
 
+    // 🔍 STEP 3: 変換・構築が完了した直後のローカル変数の状態
+    console.log("📢 [STEP 3] 構築完了した safePlayers の生データ:", safePlayers);
+
+    // 送信データのオブジェクト（ペイロード）作成
     const payload = {
         type: "SYNC_STATE",
-        rawPlayerList: rawPlayerList, 
+        rawPlayerList: Array.isArray(rawPlayerList) ? [...rawPlayerList] : [], 
         gameState: {
             isGameStarted: Boolean(game.isGameStarted),
             deck: Array.isArray(game.deck) ? [...game.deck] : [],
@@ -505,17 +544,25 @@ function sendStateToSingleConnection(conn) {
             logMessages: Array.isArray(game.logMessages) ? [...game.logMessages] : [],
             cardSettings: game.cardSettings ? game.cardSettings : null,
             drawSettings: game.drawSettings ? game.drawSettings : null,
-            players: safePlayers // ⭕ 厳密に構築された正確な safePlayers を送信
+            players: safePlayers // 👈 ここで正しく代入されているか確認
         },
         secretView: secretViewData ? secretViewData : null
     };
 
+    // 🔍 STEP 4: 送信関数（conn.send）に渡す直前の payload 全体の状態
+    console.log("📢 [STEP 4] conn.send() 直前の payload.gameState の中身:", {
+        gameStateExists: !!payload.gameState,
+        playersPropertyExists: payload.gameState ? ('players' in payload.gameState) : false,
+        playersValue: payload.gameState ? payload.gameState.players : "gameState自体がない"
+    });
+
     try {
         conn.send(payload);
+        console.log("✅ [HOST SEND SUCCESS] データオブジェクトを PeerJS のパイプラインに投入しました。");
     } catch (sendSerializeError) {
-        console.error("🚨 送信失敗。フォールバックを実行します:", sendSerializeError);
-        try { conn.send(JSON.stringify(payload)); } catch(e){}
+        console.error("🚨 [HOST SEND SERIALIZE ERROR] PeerJSの送信でエラーが発生しました:", sendSerializeError);
     }
+    console.log(`--- 📥 [HOST SEND END] ---\n`);
 }
 
 // ホストから全ゲストへ状態をブロードキャスト

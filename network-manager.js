@@ -469,12 +469,19 @@ export function broadcastState() {
 
 // ホスト用：プレイヤーのキック
 export function hostKickPlayer(peerId) {
-    if (!isHost) return;
-    const conn = guestConnections.find(c => c.peer === peerId);
-    if (conn) {
-        conn.close();
-    }
-    handlePlayerDisconnect(peerId);
+    if (!isHost) return;
+    const conn = guestConnections.find(c => c.peer === peerId);
+    if (conn) {
+        try { conn.close(); } catch (e) {}
+    }
+    guestConnections = guestConnections.filter(c => c.peer !== peerId);
+
+    const target = rawPlayerList.find(p => p.id === peerId);
+    if (target) game.log(`👢 ${target.name} をキックしました。`);
+
+    rawPlayerList = rawPlayerList.filter(p => p.id !== peerId); // ← 完全削除
+    broadcastState();
+    updateUI();
 }
 
 /**
@@ -703,11 +710,11 @@ export function transferHostPrivilege(newHostId) {
         })
     };
 
-    isMigrating = true;
-
-    guestConnections.forEach(conn => {
-        if (conn.open) conn.send(payload);
-    });
+    const payloadStr = JSON.stringify(payload);
+    isMigrating = true;
+    guestConnections.forEach(conn => {
+        if (conn.open) conn.send(payloadStr);
+    });
 
     setIsHost(false);
 

@@ -1,6 +1,6 @@
 // script.js
 import { game } from "./game-logic.js";
-import { updateUI, hostStartGame, hostNextRound } from "./ui-manager.js";
+import { updateUI, hostStartGame, hostNextRound, hostAbortGame } from "./ui-manager.js";
 import { leaveRoom, setIsHost, setRawPlayerList, guestJoinRoom } from "./network-manager.js";
 
 // 💡 ピアオブジェクトは window.peer で一元管理します
@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const randomId = Math.floor(10000000 + Math.random() * 90000000).toString();
     
     const peerOptions = {
+        serialization: 'json', // ← これを追加
         config: {
             'iceServers': [
                 { url: 'stun:stun.l.google.com:19302' },
@@ -17,7 +18,6 @@ document.addEventListener("DOMContentLoaded", () => {
             ]
         }
     };
-
     // グローバルに1つだけ生成（UUID化を防ぐ）
     window.peer = new Peer(randomId, peerOptions);
     
@@ -74,6 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("leave-room-btn")?.addEventListener("click", handleLeave);
     document.getElementById("start-game-btn")?.addEventListener("click", hostStartGame);
     document.getElementById("next-round-btn")?.addEventListener("click", hostNextRound);
+    document.getElementById("host-abort-btn")?.addEventListener("click", hostAbortGame);
 });
 
 // 👑 ホストとしての接続待ち受けを起動する共通関数

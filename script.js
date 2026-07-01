@@ -75,7 +75,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("start-game-btn")?.addEventListener("click", hostStartGame);
     document.getElementById("next-round-btn")?.addEventListener("click", hostNextRound);
 });
-});
 
 // 👑 ホストとしての接続待ち受けを起動する共通関数
 export function startHostListening() {

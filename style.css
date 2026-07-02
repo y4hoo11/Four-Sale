@@ -256,62 +256,84 @@ button:active, .btn-sidebar:active {
 }
 
 /* ==========================================================================
-   🏢 物件・小切手エリア（縦の長さをカードサイズへジャストフィットに調整）
+   🏢 物件・小切手エリア（文字を左上、カードをその下、右側に山札背景を完全独立）
    ========================================================================== */
 
-/* 💡 物件エリアと山札エリアを横に並べるための親コンテナ */
+/* 💡 物件エリアと山札エリアを横に並べるための最外枠（親コンテナ） */
 .auction-board {
     display: grid;
-    /* 左側（メイン）は下のメインエリアと等幅で伸縮、右側は山札用に110pxで固定 */
+    /* 左側（メイン）は残り全部の幅、右側（山札）は110pxで固定し、区切り（gap）を15pxに設定 */
     grid-template-columns: 1fr 110px;
     gap: 15px;
     width: 100%;
     box-sizing: border-box;
-    align-items: center; /* 🛠️ 左右の要素が縦に伸びるのを防ぎ、中央に綺麗に並べる */
+    align-items: stretch; /* 左右の背景パネルの縦の長さを美しく揃える */
 }
 
-/* 💡 【左側・残り全部】物件カードを並べる上品な白の透明背景 */
+/* 💡 【左側・残り全部】文字と物件カード群を包む広い背景パネル */
 .market-container, 
 .auction-cards-wrapper {
     background: rgba(255, 255, 255, 0.65); /* プレイヤーの場と同じ透明度 */
     backdrop-filter: blur(4px);            /* 後ろを上品にぼかすエフェクト */
     border: 1px solid rgba(225, 215, 193, 0.8);
     border-radius: 12px;
-    
-    /* 🛠️ 縦の長さを抑えるためのキー調整 */
-    padding: 6px 12px;        /* 上下の余白（6px）を限界まで狭くして縦幅を圧縮 */
-    min-height: 144px;        /* カード高さ(132px)＋上下余白(12px)でジャストフィットに固定 */
+    padding: 10px 15px;                    /* 上下余白10px、左右余白15px */
     box-sizing: border-box;
-    margin-bottom: 0;         /* 隙間は grid の gap に任せるためリセット */
+    margin-bottom: 0;                      /* 隙間は親の grid gap に任せるためリセット */
     
-    position: relative; 
+    /* 🛠️ 内部の「文字」と「カードエリア」を上下の2層に分ける設定 */
     display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    align-items: center;
+    flex-direction: column;
+    justify-content: space-between;        /* 上下に綺麗に振り分ける */
+    align-items: flex-start;               /* 左寄せ（文字もカードも左端に揃う） */
+    
+    /* 🛠️ 縦の長さの計算：文字(約20px) ＋ 隙間(8px) ＋ カード(132px) ＋ 上下余白(20px) ＝ 180px */
+    min-height: 180px;
     flex-grow: 1;
 }
 
-/* 💡 【右側・カード1枚分より少し大きい】山札を包む専用の背景パネル */
+/* 💡 左上の角に配置されるテキストラベル（「競売にかけられた物件」などの文字） */
+.market-container h3,
+.auction-cards-wrapper h3,
+.market-title {
+    margin: 0 0 8px 0;                     /* 下に少しだけ隙間を作ってカードと離す */
+    font-size: 0.95rem;
+    font-weight: bold;
+    color: #7e5109;                        /* マイルドなクラフト調に合う濃い茶系カラー */
+    align-self: flex-start;                /* 確実に左上の角に固定 */
+}
+
+/* 💡 テキストラベルの下にカードを横並びにするFlexbox */
+.market-cards,
+#card-area-auction {
+    display: flex;
+    gap: 12px;                             /* カード同士の横の隙間 */
+    flex-wrap: wrap;                       /* 幅を超えたら綺麗に自動折り返し */
+    align-items: flex-end;
+    width: 100%;                           /* 横幅いっぱいにカードを並べられるように設定 */
+}
+
+/* 💡 【右側・カード1枚分より少し大きい】完全に独立した山札専用の背景パネル */
 #deck-pile-visual {
-    grid-column: 2; /* グリッドの2列目（右側）に強制配置 */
+    grid-column: 2;                        /* グリッドの2列目（右側）に配置 */
     
     background: rgba(255, 255, 255, 0.65) !important;
     backdrop-filter: blur(4px);
     border: 1px solid rgba(225, 215, 193, 0.8) !important;
     border-radius: 12px;
-    
-    /* 🛠️ 左側の物件エリアと「縦の長さ」を完全に一致させるための調整 */
-    padding: 6px;
-    width: 110px !important;
-    height: 144px !important; /* 左側と同じ144pxに指定して高さを完全に統一 */
+    padding: 8px;
     box-sizing: border-box;
     
-    /* 過去の absolute 配置の干渉をすべて上書きリセット */
+    /* 🛠️ 左側の物件エリア（180px）と「縦の長さ」を完全に一致させて綺麗に四角く見せる */
+    width: 110px !important;
+    height: 180px !important;
+    
+    /* 過去の absolute 配置による固定位置やマージンの干渉をすべて上書きリセット */
     position: static !important;
     transform: none !important;
     margin: 0 !important;
     
+    /* パネルの内部で山札カードを上下左右中央にジャスト配置 */
     display: flex !important;
     flex-direction: column;
     justify-content: center;
@@ -320,8 +342,8 @@ button:active, .btn-sidebar:active {
 
 /* 山札のビジュアル（緑色の本家風カードデザイン） */
 .deck-card {
-    width: 92px;   /* 下部のカードと横幅を完全に統一 */
-    height: 132px;  /* 下部のカードと縦幅を完全に統一 */
+    width: 92px;                           /* 他のゲームカードと横幅を完全統一 */
+    height: 132px;                          /* 他のゲームカードと縦幅を完全統一 */
     background: linear-gradient(135deg, #27ae60, #2ecc71);
     color: white;
     display: flex;

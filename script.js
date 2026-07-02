@@ -3,14 +3,10 @@ import { game } from "./game-logic.js";
 import { updateUI, hostStartGame, hostNextRound, hostAbortGame } from "./ui-manager.js";
 import { leaveRoom, setIsHost, setRawPlayerList, guestJoinRoom } from "./network-manager.js";
 
-// 💡 自分の本来のPeerIDを安全に保持しておくための変数
-let originalMyId = "";
-
 // 💡 ピアオブジェクトは window.peer で一元管理します
 document.addEventListener("DOMContentLoaded", () => {
     // 8桁のランダムな数字でPeerIDを生成
     const randomId = Math.floor(10000000 + Math.random() * 90000000).toString();
-    originalMyId = randomId; // 本来のIDを退避
     
     const peerOptions = {
         serialization: 'json',
@@ -41,8 +37,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // シグナリングサーバーへの接続成功時
     window.peer.on('open', (id) => {
-        // 💡 共通の表示関数を呼び出すことで、CSSの見た目を崩さずに文字だけを安全に差し替えます
-        updateIdDisplays(id, false);
+        // 💡 起動時に自分のIDを緑のカプセルに一度だけセットします（以後、固定）
+        const currentDisplay = document.getElementById("current-display-id");
+        const parentDisplay = document.getElementById("my-peer-id");
+        
+        if (currentDisplay) {
+            currentDisplay.innerText = `部屋ID: ${id} (クリックでコピー)`;
+            if (parentDisplay) {
+                parentDisplay.onclick = () => {
+                    navigator.clipboard.writeText(id).then(() => {
+                        const originalText = currentDisplay.innerText;
+                        currentDisplay.innerText = "📋 コピーしました！";
+                        setTimeout(() => currentDisplay.innerText = originalText, 1000);
+                    }).catch(err => console.error("コピーに失敗しました:", err));
+                };
+            }
+        }
     });
 
     // 接続エラーハンドリング
@@ -61,9 +71,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!confirm("本当に部屋を離脱しますか？")) return;
         leaveRoom();
         
-        // 💡 離退時はIDを「自分自身の本来のID」に復元する（nullにしない）
-        window.myId = originalMyId; 
-        updateIdDisplays(originalMyId, false);
+        // 💡 画面最上部の自分のID（緑カプセル）は書き換えないため、
+        // ロビー内の「現在の部屋ID」の文字だけをリセットします。
+        const lobbyDisplay = document.getElementById("lobby-current-room-id");
+        if (lobbyDisplay) lobbyDisplay.textContent = "---- ----";
         
         updateUI();
     };
@@ -83,39 +94,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
-
-/**
- * 🆔 画面上の部屋ID表示を一括更新する共通関数
- * @param {string} id - 表示するID
- * @param {boolean} isGuestMode - ゲストとして参加中かどうか
- */
-function updateIdDisplays(id, isGuestMode = false) {
-    const parentDisplay = document.getElementById("my-peer-id");
-    const currentDisplay = document.getElementById("current-display-id");
-    const lobbyDisplay = document.getElementById("lobby-current-room-id");
-
-    if (currentDisplay) {
-        if (isGuestMode) {
-            currentDisplay.innerHTML = `ゲストとして参加中 (部屋ID: <span style="font-weight: bold; text-decoration: underline;">${id}</span>)`;
-            if (parentDisplay) parentDisplay.onclick = null; // ゲスト時はクリックコピーを一変無効化
-        } else {
-            currentDisplay.innerText = `部屋ID: ${id} (クリックでコピー)`;
-            if (parentDisplay) {
-                parentDisplay.onclick = () => {
-                    navigator.clipboard.writeText(id).then(() => {
-                        const originalText = currentDisplay.innerText;
-                        currentDisplay.innerText = "📋 コピーしました！";
-                        setTimeout(() => currentDisplay.innerText = originalText, 1000);
-                    }).catch(err => console.error("コピーに失敗しました:", err));
-                };
-            }
-        }
-    }
-
-    if (lobbyDisplay) {
-        lobbyDisplay.textContent = id;
-    }
-}
 
 // 👑 ホストとしての接続待ち受けを起動する共通関数
 export function startHostListening() {
@@ -138,7 +116,6 @@ export function startHostListening() {
         });
     });
 
-    // 強制中断ボタンの配置
     import("./ui-manager.js").then(mod => mod.injectAbortButton());
 }
 window.activateHostMode = startHostListening;
@@ -155,8 +132,9 @@ function beHost() {
     document.getElementById("setup-container").style.display = "none";
     document.getElementById("game-container").style.display = "block";
 
-    // ホスト自身の画面のID表示を確定
-    updateIdDisplays(window.myId, false);
+    // 💡 自分がホストになったので、ロビー内の「現在の部屋ID（赤文字）」に自分のIDを表示
+    const lobbyDisplay = document.getElementById("lobby-current-room-id");
+    if (lobbyDisplay) lobbyDisplay.textContent = window.myId;
 
     import("./ui-manager.js").then(mod => {
         if (typeof mod.renderCustomSettingsUI === "function") mod.renderCustomSettingsUI();
@@ -180,7 +158,7 @@ function joinRoom() {
         return;
     }
 
-    if (targetRoomId === originalMyId) {
+    if (targetRoomId === window.myId) {
         alert("自分の部屋IDには入室できません。");
         return;
     }
@@ -188,8 +166,33 @@ function joinRoom() {
     const nameInput = document.getElementById("name-input");
     window.myPlayerName = nameInput ? nameInput.value.trim() : "ゲスト";
 
-    // 💡 接続を試みるタイミングでホストのID表示に切り替える
-    updateIdDisplays(targetRoomId, true);
+    // 💡 画面最上部の自分の緑カプセルは一切変更せず、
+    // ロビー内の「現在の部屋ID（赤文字）」に入室先ターゲットの部屋ID（相手のID）を同期させます。
+    const lobbyDisplay = document.getElementById("lobby-current-room-id");
+    if (lobbyDisplay) lobbyDisplay.textContent = targetRoomId;
 
     guestJoinRoom(targetRoomId, window.myPlayerName);
 }
+
+/**
+ * 👑 現在のルームのホストIDを自動検出し、ロビーの部屋ID表示をリアルタイムに更新する関数
+ * @param {Array} playerList - 現在の全プレイヤーリスト（省略された場合はwindow上のリスト等から取得を試みる）
+ */
+export function syncLobbyHostId(playerList) {
+    const lobbyDisplay = document.getElementById("lobby-current-room-id");
+    if (!lobbyDisplay) return;
+
+    // 1. 引数で渡されたリスト、またはグローバルな領域からプレイヤーリストを探す
+    const list = playerList || window.rawPlayerList || (window.game && window.game.players);
+    if (!list || !Array.isArray(list)) return;
+
+    // 2. リストの中から「isHost: true」のプレイヤーを探し出す
+    const currentHost = list.find(p => p.isHost === true);
+
+    // 3. 見つかったホストのIDをロビーの赤文字部分にリアルタイム反映
+    if (currentHost && currentHost.id) {
+        lobbyDisplay.textContent = currentHost.id;
+    }
+}
+// 他のファイルから直接window経由でも呼べるようにグローバルに登録
+window.syncLobbyHostId = syncLobbyHostId;

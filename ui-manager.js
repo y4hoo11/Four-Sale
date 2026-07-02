@@ -325,14 +325,22 @@ function renderMarket() {
     const titleEl = document.getElementById("market-title-text");
     if (!listEl) return;
     listEl.innerHTML = "";
+    
     if (game.phase === "BID") {
         if (titleEl) titleEl.innerText = "競売にかけられた物件";
     } else {
         if (titleEl) titleEl.innerText = "オープンされた小切手 (ドル札)";
     }
+    
     const displayMarket = game.phase === "SELL" ? [...(game.market || [])].reverse() : (game.market || []);
+    
+    // 1. 通常のカードをレンダリング
     if (displayMarket.length === 0) {
-        listEl.innerHTML = "<p style='color:#7f8c8d;'>場にオープンされたカードはありません</p>";
+        const emptyText = document.createElement("p");
+        emptyText.style.color = "#7f8c8d";
+        emptyText.style.margin = "0";
+        emptyText.innerText = "場にオープンされたカードはありません";
+        listEl.appendChild(emptyText);
     } else {
         displayMarket.forEach(val => {
             const card = document.createElement("div");
@@ -360,17 +368,35 @@ function renderMarket() {
             listEl.appendChild(card);
         });
     }
-    // 💡 山札カードを毎回動的に生成し、常に一覧の末尾に追加する
-    const deckCard = document.createElement("div");
-    deckCard.id = "deck-pile-visual";
-    deckCard.className = "game-card deck-pile-card";
-    deckCard.innerHTML = `
-        <div class="card-illustration">🎴</div>
-        <div class="deck-pile-label">FOR SALE</div>
-        <div id="deck-count-num" class="deck-pile-count">${game.isGameStarted && game.deck ? game.deck.length : "--"}</div>
-        <div class="deck-pile-label">残り枚数</div>
-    `;
-    listEl.appendChild(deckCard);
+    
+    // 2. 💡 山札カードの描画制御（残り枚数が 0 より大きい場合のみ表示）
+    const deckCount = (game.isGameStarted && game.deck) ? game.deck.length : 0;
+    
+    if (deckCount > 0) {
+        const deckCard = document.createElement("div");
+        deckCard.id = "deck-pile-visual";
+        deckCard.className = "game-card deck-pile-card"; 
+        
+        // スタイル設定（薄緑色のデザイン）
+        deckCard.style.background = "#e8f8f5"; 
+        deckCard.style.borderColor = "#2cc7a0";
+        deckCard.style.borderStyle = "dashed";  
+        deckCard.style.display = "flex";
+        deckCard.style.flexDirection = "column";
+        deckCard.style.justifyContent = "center";
+        deckCard.style.alignItems = "center";
+        deckCard.style.position = "relative";
+
+        deckCard.innerHTML = `
+            <div class="card-num card-num-top-left" style="color:#2cc7a0; font-size:0.75rem;">🎴</div>
+            <div class="card-num card-num-top-right" style="color:#2cc7a0; font-size:0.75rem;">x${deckCount}</div>
+            <div class="card-illustration" style="font-size: 2rem; margin: 5px 0;">🎴</div>
+            <div style="font-size: 0.75rem; font-weight: bold; color: #16a085;">残り ${deckCount} 枚</div>
+            <div class="card-num card-num-bottom-left" style="color:#2cc7a0; font-size:0.75rem;">x${deckCount}</div>
+            <div class="card-num card-num-bottom-right" style="color:#2cc7a0; font-size:0.75rem;">🎴</div>
+        `;
+        listEl.appendChild(deckCard);
+    }
 }
 
 function renderConsoleAndHand() {

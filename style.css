@@ -551,10 +551,11 @@ button:active, .btn-sidebar:active {
    🎮 ゲーム上部バー（コンパクトな入札・パスボタン）
    ========================================================================== */
 .game-top-bar {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
+    position: relative;
+    display: flex;
+    justify-content: center;
     align-items: center;
-    gap: 12px;
+    min-height: 60px;
 }
 .game-top-center {
     display: flex;
@@ -567,7 +568,21 @@ button:active, .btn-sidebar:active {
     display: flex;
     gap: 8px;
 }
-.game-top-leave-btn, .game-top-next-btn {
+/* 💡 離脱ボタンを絶対配置で右端に固定し、中央ブロックの幅計算から切り離す */
+.game-top-leave-btn {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: auto;
+    white-space: nowrap;
+}
+/* 💡 次ラウンドボタンは左端に固定（右の離脱ボタンとバランスを取る） */
+.game-top-next-btn {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
     width: auto;
     white-space: nowrap;
 }
@@ -629,20 +644,32 @@ button:active, .btn-sidebar:active {
     border-color: #b77c7c;
 }
 /* 💡 左右2つの数字を並べる行（上段・下段共通） */
-.card-num-row {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
+/* 💡 カード四隅の数字（絶対配置で各コーナーに固定） */
+.card-num {
+    position: absolute;
     font-weight: bold;
-    font-size: 1.15rem;
+    font-size: 1.1rem;
     line-height: 1;
-    box-sizing: border-box;
+}
+.card-num-top-left {
+    top: 6px;
+    left: 8px;
+}
+.card-num-top-right {
+    top: 6px;
+    right: 8px;
+}
+.card-num-bottom-left {
+    bottom: 6px;
+    left: 8px;
+    transform: rotate(180deg); /* その場で逆さに */
+}
+.card-num-bottom-right {
+    bottom: 6px;
+    right: 8px;
+    transform: rotate(180deg); /* その場で逆さに */
 }
 .card-illustration {
     font-size: 2rem;
     line-height: 1;
-}
-/* 下段だけ180度回転させ、逆さ表記に */
-.card-num-row.card-row-bottom {
-    transform: rotate(180deg);
 }

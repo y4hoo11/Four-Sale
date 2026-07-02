@@ -344,17 +344,21 @@ function renderMarket() {
         if (game.phase === "BID") {
             card.style.background = "#fff";
             card.innerHTML = `
-                <div class="card-top-num">${val}</div>
+                <div class="card-num card-num-top-left">${val}</div>
+                <div class="card-num card-num-top-right">${val}</div>
                 <div class="card-illustration">${getCardEmoji(val)}</div>
-                <div class="card-bottom-num">${val}</div>
+                <div class="card-num card-num-bottom-left">${val}</div>
+                <div class="card-num card-num-bottom-right">${val}</div>
             `;
         } else {
             card.style.background = "#d4efdf";
             card.style.borderColor = "#27ae60";
             card.innerHTML = `
-                <div class="card-top-num" style="color:#27ae60;">$${val}k</div>
+                <div class="card-num card-num-top-left" style="color:#27ae60;">$${val}k</div>
+                <div class="card-num card-num-top-right" style="color:#27ae60;">$${val}k</div>
                 <div class="card-illustration">💵</div>
-                <div class="card-bottom-num" style="color:#27ae60;">$${val}k</div>
+                <div class="card-num card-num-bottom-left" style="color:#27ae60;">$${val}k</div>
+                <div class="card-num card-num-bottom-right" style="color:#27ae60;">$${val}k</div>
             `;
         }
         listEl.appendChild(card);
@@ -448,9 +452,11 @@ function renderConsoleAndHand() {
                 const card = document.createElement("div");
                 card.className = "card";
                 card.innerHTML = `
-                    <div class="card-top-num">${val}</div>
+                    <div class="card-num card-num-top-left">${val}</div>
+                    <div class="card-num card-num-top-right">${val}</div>
                     <div class="card-illustration">${getCardEmoji(val)}</div>
-                    <div class="card-bottom-num">${val}</div>
+                    <div class="card-num card-num-bottom-left">${val}</div>
+                    <div class="card-num card-num-bottom-right">${val}</div>
                 `;
                 if (isMyTurn) {
                     card.onclick = () => { if (confirm(`物件 No.${val} を提示しますか？`)) executePlayCard(val, {}); };

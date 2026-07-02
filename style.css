@@ -673,3 +673,84 @@ button:active, .btn-sidebar:active {
     font-size: 2rem;
     line-height: 1;
 }
+
+/* ==========================================================================
+   🎮 ゲームボード全体のグリッド構造（右側にプレイヤーサイドバーを配置）
+   ========================================================================== */
+.game-board {
+    display: grid;
+    grid-template-columns: 1fr 240px;
+    gap: 15px;
+    align-items: start;
+}
+.game-top-bar {
+    grid-column: 1 / span 2;
+}
+.game-main-area {
+    grid-column: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.host-abort-wrapper {
+    grid-column: 1 / span 2;
+}
+
+/* ==========================================================================
+   👥 右側プレイヤーカードのサイドバー
+   ========================================================================== */
+.game-side-players {
+    grid-column: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.side-player-card {
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid #e1d7c1;
+    border-left: 5px solid #bdc3c7;
+    border-radius: 8px;
+    padding: 10px 12px;
+    box-sizing: border-box;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    transition: all 0.2s;
+}
+/* 現在の手番のプレイヤーを強調 */
+.side-player-card.active-turn {
+    border-left-color: #e74c3c;
+    background: #fff6f5;
+    box-shadow: 0 4px 10px rgba(231,76,60,0.15);
+}
+/* 切断中のプレイヤーは薄暗く */
+.side-player-card.disconnected {
+    opacity: 0.45;
+}
+.side-player-name {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    color: #2c3e50;
+    font-size: 0.95rem;
+    margin-bottom: 6px;
+}
+.side-player-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.82rem;
+    color: #5d6d7e;
+}
+
+/* 画面が狭い場合はサイドバーを下に落として1カラムに */
+@media (max-width: 700px) {
+    .game-board {
+        grid-template-columns: 1fr;
+    }
+    .game-top-bar,
+    .host-abort-wrapper,
+    .game-main-area,
+    .game-side-players {
+        grid-column: 1;
+    }
+}

@@ -3,13 +3,17 @@ import { game } from "./game-logic.js";
 import { updateUI, hostStartGame, hostNextRound, hostAbortGame } from "./ui-manager.js";
 import { leaveRoom, setIsHost, setRawPlayerList, guestJoinRoom } from "./network-manager.js";
 
+// 💡 自分の本来のPeerIDを安全に保持しておくための変数
+let originalMyId = "";
+
 // 💡 ピアオブジェクトは window.peer で一元管理します
 document.addEventListener("DOMContentLoaded", () => {
     // 8桁のランダムな数字でPeerIDを生成
     const randomId = Math.floor(10000000 + Math.random() * 90000000).toString();
+    originalMyId = randomId; // 本来のIDを退避
     
     const peerOptions = {
-        serialization: 'json', // ← これを追加
+        serialization: 'json',
         config: {
             'iceServers': [
                 { url: 'stun:stun.l.google.com:19302' },
@@ -56,28 +60,71 @@ document.addEventListener("DOMContentLoaded", () => {
     // 接続エラーハンドリング
     window.peer.on('error', (err) => {
         console.error("PeerJS Connection Error:", err);
-        const idDisplay = document.getElementById("my-peer-id");
+        const idDisplay = document.getElementById("current-display-id");
         if (idDisplay) idDisplay.innerText = `❌ エラーが発生しました: ${err.type}`;
     });
 
     // 各ボタンへのイベント紐付け
     document.getElementById("be-host-btn")?.addEventListener("click", beHost);
     document.getElementById("join-room-btn")?.addEventListener("click", joinRoom);
-    // 待機ロビーとゲーム内、両方の離脱ボタンに処理を登録する
+    
     // 待機ロビーとゲーム内、両方の離脱ボタンに処理を登録する
     const handleLeave = () => {
         if (!confirm("本当に部屋を離脱しますか？")) return;
         leaveRoom();
-        // 離脱時はログイン情報をクリアしてUIを初期化する
-        window.myId = null; 
+        
+        // 💡 離脱時はIDを「自分自身の本来のID」に復元する（nullにしない）
+        window.myId = originalMyId; 
+        updateIdDisplays(originalMyId, false);
+        
         updateUI();
     };
+    
     document.getElementById("lobby-leave-btn")?.addEventListener("click", handleLeave);
     document.getElementById("leave-room-btn")?.addEventListener("click", handleLeave);
     document.getElementById("start-game-btn")?.addEventListener("click", hostStartGame);
     document.getElementById("next-round-btn")?.addEventListener("click", hostNextRound);
     document.getElementById("host-abort-btn")?.addEventListener("click", hostAbortGame);
+
+    // 🏡 獲得物件一覧の表示オンオフ設定の初期連動
+    const showOwnedCardsCheckbox = document.getElementById("setting-show-owned-cards");
+    const ownedCardsPanel = document.getElementById("owned-cards-panel");
+    if (showOwnedCardsCheckbox && ownedCardsPanel) {
+        showOwnedCardsCheckbox.addEventListener("change", () => {
+            ownedCardsPanel.style.display = showOwnedCardsCheckbox.checked ? "block" : "none";
+        });
+    }
 });
+
+/**
+ * 🆔 画面上の部屋ID表示を一括更新する共通関数
+ * @param {string} id - 表示するID
+ * @param {boolean} isGuestMode - ゲストとして参加中かどうか
+ */
+function updateIdDisplays(id, isGuestMode = false) {
+    const currentDisplay = document.getElementById("current-display-id");
+    const lobbyDisplay = document.getElementById("lobby-current-room-id");
+
+    if (currentDisplay) {
+        if (isGuestMode) {
+            currentDisplay.innerHTML = `ゲストとして参加中 (部屋ID: <span style="color:#d9534f;">${id}</span>)`;
+            currentDisplay.onclick = null; // ゲスト時はクリックコピーを無効化（またはホストIDコピーに変更可）
+        } else {
+            currentDisplay.innerText = `部屋ID: ${id} (クリックでコピー)`;
+            currentDisplay.onclick = () => {
+                navigator.clipboard.writeText(id).then(() => {
+                    const originalText = currentDisplay.innerText;
+                    currentDisplay.innerText = "📋 コピーしました！";
+                    setTimeout(() => currentDisplay.innerText = originalText, 1000);
+                }).catch(err => console.error("コピーに失敗しました:", err));
+            };
+        }
+    }
+
+    if (lobbyDisplay) {
+        lobbyDisplay.textContent = id;
+    }
+}
 
 // 👑 ホストとしての接続待ち受けを起動する共通関数
 export function startHostListening() {
@@ -117,6 +164,9 @@ function beHost() {
     document.getElementById("setup-container").style.display = "none";
     document.getElementById("game-container").style.display = "block";
 
+    // ホスト自身の画面のID表示を確定
+    updateIdDisplays(window.myId, false);
+
     import("./ui-manager.js").then(mod => {
         if (typeof mod.renderCustomSettingsUI === "function") mod.renderCustomSettingsUI();
         else mod.injectCustomSettingsUIIntoGame();
@@ -139,7 +189,7 @@ function joinRoom() {
         return;
     }
 
-    if (targetRoomId === window.myId) {
+    if (targetRoomId === originalMyId) {
         alert("自分の部屋IDには入室できません。");
         return;
     }
@@ -147,6 +197,10 @@ function joinRoom() {
     const nameInput = document.getElementById("name-input");
     window.myPlayerName = nameInput ? nameInput.value.trim() : "ゲスト";
 
-    // 💡 画面を切り替える権利を network-manager 側の「接続成功時」に委ねるため、ここではただ呼び出すだけ
+    // 💡 接続を試みるタイミング、または成功したタイミングでホストのID表示に切り替える
+    // ※network-manager.jsの接続成功（open）フック内に記述するのが理想ですが、
+    // ここで先行して書き換えるか、あるいは成功後にnetwork-manager側からこの関数を呼ぶようにしてください。
+    updateIdDisplays(targetRoomId, true);
+
     guestJoinRoom(targetRoomId, window.myPlayerName);
 }

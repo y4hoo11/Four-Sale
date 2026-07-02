@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>フォーセール (For Sale) P2P</title>
+    <title>フォーセール (For Sale)</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="./style.css">
 </head>
 <body>
 
     <h1>🏢 FOR SALE (フォーセール)</h1>
-    <div id="my-peer-id">部屋IDを生成中...</div>
+    
+    <div id="my-peer-id" style="font-weight: bold; padding: 10px; background: #f4f4f4; border-bottom: 1px solid #ddd; text-align: center; border-radius: 5px; margin-bottom: 15px;">
+        あなたのID: <span id="current-display-id">部屋IDを生成中...</span>
+    </div>
 
     <div id="setup-container" class="panel-light">
         <h2>ルームセットアップ</h2>
@@ -36,7 +39,20 @@
             <h2>📋 待機ロビー</h2>
             <button id="lobby-leave-btn" class="btn-danger">部屋を離脱</button>
         </div>
-        <div id="integrated-custom-settings" style="margin-bottom: 20px;"></div>
+        
+        <div id="lobby-room-id-display" style="background: rgba(0,0,0,0.05); padding: 10px; border-radius: 5px; margin-bottom: 15px; font-weight: bold; text-align: center;">
+            現在の部屋ID: <span id="lobby-current-room-id" style="color: #d9534f; font-size: 1.2rem;">---- ----</span>
+        </div>
+
+        <div id="integrated-custom-settings" style="margin-bottom: 20px;">
+            <div class="input-group" style="margin-top: 10px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="setting-show-owned-cards" checked>
+                    <span>ゲーム中に「自分が獲得した物件カード一覧」を表示する</span>
+                </label>
+            </div>
+        </div>
+
         <h3>👥 参加プレイヤーリスト</h3>
         <div id="lobby-player-list"></div>
         <button id="start-game-btn" class="btn-primary" style="display: none; margin-top: 20px; font-size: 1.2rem; padding: 15px;">🎮 ゲーム開始</button>
@@ -76,6 +92,13 @@
                     <div id="console-info-text" class="console-info-text">
                         あなたの現在の入札値: 0 k$ | あなたの手持ちコイン: 14 k$ | 入札の最低値: 1 k$
                     </div>
+                    
+                    <div id="owned-cards-panel" style="background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(2px); border-radius: 8px; padding: 10px; margin: 10px 0; border: 1px solid rgba(255,255,255,0.4);">
+                        <div style="font-size: 0.85rem; font-weight: bold; color: #555; margin-bottom: 5px;">🏡 獲得済みの物件カード</div>
+                        <div id="owned-cards-list" style="display: flex; flex-wrap: wrap; gap: 5px; min-height: 40px;">
+                            </div>
+                    </div>
+
                     <div id="card-area"></div>
                 </div>
 

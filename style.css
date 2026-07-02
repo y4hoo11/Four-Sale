@@ -259,10 +259,51 @@ button:active, .btn-sidebar:active {
     composes: top-action-bar;
 }
 
-/* 🏢 競売ボード（カードと山札） */
 /* ==========================================================================
-   🏢 競売ボード（カードと山札の並び・背景調整）
+   🏢 物件・小切手エリア（マーケット全体の背景調整と山札の右端固定）
    ========================================================================== */
+
+/* 物件エリア全体を包むコンテナ（プレイヤーの場と同じ透明白背景を適用） */
+.market-container {
+    background: rgba(255, 255, 255, 0.65); /* プレイヤーの場と同じ透明度 */
+    backdrop-filter: blur(4px);            /* 後ろを上品にぼかすエフェクト */
+    border: 1px solid rgba(225, 215, 193, 0.8);
+    border-radius: 12px;
+    padding: 15px;
+    box-sizing: border-box;
+    margin-bottom: 15px;
+    
+    /* 💡 このコンテナ自体を絶対配置の基準（親）にします */
+    position: relative; 
+    
+    /* 💡 左側の物件カードがどれだけ増えても、右端の山札カードと重ならないように余白を広く確保 */
+    padding-right: 130px; 
+}
+
+/* カードを横並びにするFlexbox */
+.market-cards {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    min-height: 132px; /* カードが1枚もない時でも高さを維持 */
+}
+
+/* 💡 山札カードを他の物件カードの並びから完全に切り離し、右端に「孤立」させて固定配置 */
+.deck-pile-card {
+    position: absolute;       /* 💡 親要素（.market-container）を基準に自由配置 */
+    right: 15px;               /* 💡 右のフチから15px離れた場所に固定 */
+    top: 55%;                 /* 💡 上下中央付近に配置 */
+    transform: translateY(-50%); /* 💡 きれいに上下中央を揃える調整 */
+    
+    width: 92px !important;    /* 下部の .game-card のサイズと完全に統一 */
+    height: 132px !important;  /* 下部の .game-card のサイズと完全に統一 */
+    box-sizing: border-box;
+    border-radius: 8px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+    margin: 0 !important;      /* Flexboxによる自動マージンや隙間計算をすべて無効化 */
+}
+
 .auction-board {
     display: flex;
     gap: 15px;
@@ -472,7 +513,7 @@ button:active, .btn-sidebar:active {
 }
 /* 💡 選択位置より左側（選択枚数未満）のコインは、縁を薄い赤に */
 .coin-btn.active-faded {
-    border: 2px solid rgba(231, 76, 60, 0.35);
+    border: 2px solid rgba(255, 64, 43, 0.671);
 }
 .coin-btn.coin-disabled {
     cursor: not-allowed;

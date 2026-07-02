@@ -1,14 +1,18 @@
 // ui-manager.js
 import { game } from "./game-logic.js";
 import { isHost, rawPlayerList, broadcastState, hostKickPlayer, hostTransferAuthority, connToHost } from "./network-manager.js";
+
 // 現在選択されている入札用の追加コイン枚数
 let currentSelectedCoins = 0;
+
 // ゲストがホストから最初のデータ同期を完了したかどうかのフラグ
 let isFirstSyncReceived = false;
+
 // ゲスト側でデータを受信したときに呼び出す同期完了通知関数
 export function markFirstSyncComplete() {
     isFirstSyncReceived = true;
 }
+
 // 物件の絵文字をNoごとに決定するヘルパー
 function getCardEmoji(val) {
     if (val <= 5) return "🧻"; 
@@ -18,6 +22,7 @@ function getCardEmoji(val) {
     if (val <= 25) return "🏰"; 
     return "🚀"; 
 }
+
 export function hostStartGame() {
     if (!isHost) return;
     const success = game.initRound(rawPlayerList);
@@ -29,6 +34,7 @@ export function hostStartGame() {
         updateUI();
     }
 }
+
 // 👑 ホスト専用：ゲームの強制終了（中断）処理
 export function hostAbortGame() {
     if (!isHost) return;
@@ -46,6 +52,7 @@ export function hostAbortGame() {
     broadcastState();
     updateUI();
 }
+
 export function hostNextRound() {
     if (!isHost) return;
     const currentScores = {};
@@ -62,10 +69,12 @@ export function hostNextRound() {
         updateUI();
     }
 }
+
 export function updateUI() {
     const setupContainer = document.getElementById("setup-container");
     const lobbyContainer = document.getElementById("lobby-container");
     const gameContainer = document.getElementById("game-container");
+
     // 0. まだ自分のID（ログイン情報）がない場合は初期画面
     if (!window.myId) {
         if (setupContainer) setupContainer.style.display = "block";
@@ -73,9 +82,11 @@ export function updateUI() {
         if (gameContainer) gameContainer.style.display = "none";
         return;
     }
+
     // ログイン済み：セットアップ画面を隠す
     if (setupContainer) setupContainer.style.display = "none";
-    // 1. 画面表示の排た制御
+
+    // 1. 画面表示の排他制御
     // ゲストの場合：初回同期データが届くまではロビー画面を維持（チラつき防止）
     if (!isHost && !isFirstSyncReceived) {
         if (lobbyContainer) lobbyContainer.style.display = "block";
@@ -89,33 +100,6 @@ export function updateUI() {
             if (lobbyContainer) lobbyContainer.style.display = "block";
             if (gameContainer) gameContainer.style.display = "none";
         }
-    }
-    // 2. 💡 山札カードの描画制御（残り枚数が 0 より大きい場合のみ表示）
-    const deckCount = (game.isGameStarted && game.deck) ? game.deck.length : 0;
-    
-    if (deckCount > 0) {
-        const deckCard = document.createElement("div");
-        deckCard.id = "deck-pile-visual";
-        // .game-card と山札専用の .deck-pile-card クラスを付与
-        deckCard.className = "game-card deck-pile-card"; 
-        
-        // スタイル設定（薄緑色のデザイン）
-        deckCard.style.background = "#e8f8f5"; 
-        deckCard.style.borderColor = "#2cc7a0";
-        deckCard.style.borderStyle = "dashed";  
-        deckCard.style.display = "flex";
-        deckCard.style.flexDirection = "column";
-        deckCard.style.justifyContent = "center";
-        deckCard.style.alignItems = "center";
-        deckCard.style.position = "relative";
-
-        deckCard.innerHTML = `
-            <div class="card-illustration" style="font-size: 2rem; margin-bottom: 5px;">🎴</div>
-            <div style="font-size: 0.85rem; font-weight: bold; color: #16a085; text-align: center;">
-                残り<br><span style="font-size: 1.2rem;">${deckCount}</span>枚
-            </div>
-        `;
-        listEl.appendChild(deckCard);
     }
 
     // 3. 上部ステータスバー
@@ -289,7 +273,7 @@ function renderBidStatusBoard() {
     if (!boardEl) return;
     boardEl.innerHTML = "";
 
-    // game.players の人数（3〜6人）に応じてループを回し、自動的に横3列・縦1〜2行に配置されます
+    // game.players の人数に応じてループを回し、自動的に配置されます
     game.players.forEach(p => {
         const box = document.createElement("div");
         box.className = "bid-box";
@@ -298,7 +282,7 @@ function renderBidStatusBoard() {
         if (p.id === window.myId) box.classList.add("current-player");
         if (game.phase === "BID" && p.hasPassed) box.classList.add("passed-out");
 
-        // 1. テキスト情報の構築（誰がいくら出しているか）
+        // 1. テキスト情報の構築
         const textContainer = document.createElement("div");
         textContainer.style.fontSize = "0.85rem";
         
@@ -329,10 +313,10 @@ function renderBidStatusBoard() {
                 coin.innerText = "1k";
                 coinPool.appendChild(coin);
 
-                // 💡 1枚ずつわずかにディレイ（時間差）を作ることで、ジャラジャラと場に出されたような演出になります
+                // 1枚ずつわずかにディレイ（時間差）を作る
                 setTimeout(() => {
                     coin.classList.add("fade-in-active");
-                }, i * 40); // 1枚ごとに40ミリ秒ずらす
+                }, i * 40);
             }
         }
     });
@@ -343,6 +327,11 @@ function renderMarket() {
     const titleEl = document.getElementById("market-title-text");
     if (!listEl) return;
     listEl.innerHTML = "";
+    
+    // 💡 親コンテナ（.market-container）を取得して、過去の古い山札要素が残っていれば綺麗に削除する
+    const marketContainer = listEl.parentElement;
+    const oldDeck = document.getElementById("deck-pile-visual");
+    if (oldDeck) oldDeck.remove();
     
     if (game.phase === "BID") {
         if (titleEl) titleEl.innerText = "競売にかけられた物件";
@@ -390,12 +379,11 @@ function renderMarket() {
     // 2. 💡 山札カードの描画制御（残り枚数が 0 より大きい場合のみ表示）
     const deckCount = (game.isGameStarted && game.deck) ? game.deck.length : 0;
     
-    if (deckCount > 0) {
+    if (deckCount > 0 && marketContainer) {
         const deckCard = document.createElement("div");
         deckCard.id = "deck-pile-visual";
         deckCard.className = "game-card deck-pile-card"; 
         
-        // スタイル設定（薄緑色のデザイン）
         deckCard.style.background = "#e8f8f5"; 
         deckCard.style.borderColor = "#2cc7a0";
         deckCard.style.borderStyle = "dashed";  
@@ -403,7 +391,6 @@ function renderMarket() {
         deckCard.style.flexDirection = "column";
         deckCard.style.justifyContent = "center";
         deckCard.style.alignItems = "center";
-        deckCard.style.position = "relative";
 
         deckCard.innerHTML = `
             <div class="card-num card-num-top-left" style="color:#2cc7a0; font-size:0.75rem;">🎴</div>
@@ -413,7 +400,9 @@ function renderMarket() {
             <div class="card-num card-num-bottom-left" style="color:#2cc7a0; font-size:0.75rem;">x${deckCount}</div>
             <div class="card-num card-num-bottom-right" style="color:#2cc7a0; font-size:0.75rem;">🎴</div>
         `;
-        listEl.appendChild(deckCard);
+        
+        // 💡 修正：カードリストではなく、親コンテナに直接追加して右端に固定
+        marketContainer.appendChild(deckCard);
     }
 }
 
@@ -433,7 +422,7 @@ function renderConsoleAndHand() {
         const currentHighest = Math.max(...game.players.map(p => Number(p.bid || 0)), 0);
         const minNeed = currentHighest + 1;
         const myCurrentBid = me.bid || 0;
-        const canAffordBid = me.coins >= minNeed; // 💡 最低入札額を支払えるか
+        const canAffordBid = me.coins >= minNeed; 
         if (consoleInfo) {
             consoleInfo.innerHTML = `あなたの現在の入札値: <strong>${myCurrentBid}</strong> k$ | あなたの手持ちコイン: <strong>${me.coins}</strong> 枚 | 次に必要な最低値: <strong>${minNeed}</strong> k$`;
         }
@@ -441,7 +430,6 @@ function renderConsoleAndHand() {
         const passBtn = document.getElementById("submit-pass-btn");
         if (bidBtn && passBtn) {
             if (isMyTurn && !me.hasPassed) {
-                // 💡 手持ちが足りない場合は入札ボタン自体を非表示に（パスのみ表示）
                 bidBtn.style.display = canAffordBid ? "inline-block" : "none";
                 passBtn.style.display = "inline-block";
                 bidBtn.disabled = !canAffordBid;
@@ -469,7 +457,6 @@ function renderConsoleAndHand() {
             cardArea.innerHTML = "<p style='color:#7f8c8d;'>このラウンドはパスアウトしました。全員の競り終了を待っています...</p>";
             return;
         }
-        // 💡 自分のターンになったら、選択枚数を「最低入札額」に自動セット（支払える場合のみ）
         if (isMyTurn && canAffordBid && currentSelectedCoins < minNeed) {
             currentSelectedCoins = minNeed;
         }
@@ -478,7 +465,6 @@ function renderConsoleAndHand() {
         for (let i = 1; i <= me.coins; i++) {
             const coinBtn = document.createElement("div");
             coinBtn.className = "coin-btn";
-            // 💡 支払える場合のみハイライト：選択中の1枚は濃い赤縁、その左側は薄い赤縁
             if (canAffordBid && i === currentSelectedCoins) {
                 coinBtn.classList.add("active");
             } else if (canAffordBid && i < currentSelectedCoins) {
@@ -559,7 +545,6 @@ function executePlayCard(actionValue, target) {
         broadcastState();
         updateUI();
     } else if (connToHost && connToHost.open) {
-        // 💡 serialization: 'json' のため、オブジェクトのまま直接シームレスに送信
         connToHost.send({
             type: "ACTION",
             playerId: window.myId,
@@ -574,7 +559,6 @@ export function renderCustomSettingsUI() {
     const div = document.getElementById("integrated-custom-settings");
     if (!div) return;
 
-    // 初回だけ外枠を構築し、フォーカス外れを防ぐ
     if (!div.hasAttribute("data-built")) {
         const titleText = isHost ? "⚙️ ルームカスタム設定 (ホスト権限)" : "📋 現在のルームカスタム設定 (閲覧のみ)";
         const disabledAttr = isHost ? "" : "disabled";
@@ -606,7 +590,6 @@ export function renderCustomSettingsUI() {
         }
     }
 
-    // ホストの最新のステート値をリアクティブに反映
     const coinInput = document.getElementById("cfg-initial-coins");
     const turnInput = document.getElementById("cfg-custom-turns");
     
@@ -617,7 +600,6 @@ export function renderCustomSettingsUI() {
         turnInput.value = game.customTurns || 5;
     }
 
-    // 権限のインタラクティブ制御
     if (!isHost) {
         div.style.opacity = "0.6";
         div.style.pointerEvents = "none";

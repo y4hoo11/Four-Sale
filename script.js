@@ -41,20 +41,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // シグナリングサーバーへの接続成功時
     window.peer.on('open', (id) => {
-        const idDisplay = document.getElementById("my-peer-id");
-        if (idDisplay) {
-            idDisplay.innerText = `部屋ID: ${id} (クリックでコピー)`;
-            
-            idDisplay.onclick = () => {
-                navigator.clipboard.writeText(id).then(() => {
-                    const originalText = idDisplay.innerText;
-                    idDisplay.innerText = "📋 コピーしました！";
-                    setTimeout(() => idDisplay.innerText = originalText, 1000);
-                }).catch(err => {
-                    console.error("コピー処理に失敗しました:", err);
-                });
-            };
-        }
+        // 💡 共通の表示関数を呼び出すことで、CSSの見た目を崩さずに文字だけを安全に差し替えます
+        updateIdDisplays(id, false);
     });
 
     // 接続エラーハンドリング
@@ -73,7 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!confirm("本当に部屋を離脱しますか？")) return;
         leaveRoom();
         
-        // 💡 離脱時はIDを「自分自身の本来のID」に復元する（nullにしない）
+        // 💡 離退時はIDを「自分自身の本来のID」に復元する（nullにしない）
         window.myId = originalMyId; 
         updateIdDisplays(originalMyId, false);
         
@@ -102,22 +90,25 @@ document.addEventListener("DOMContentLoaded", () => {
  * @param {boolean} isGuestMode - ゲストとして参加中かどうか
  */
 function updateIdDisplays(id, isGuestMode = false) {
+    const parentDisplay = document.getElementById("my-peer-id");
     const currentDisplay = document.getElementById("current-display-id");
     const lobbyDisplay = document.getElementById("lobby-current-room-id");
 
     if (currentDisplay) {
         if (isGuestMode) {
-            currentDisplay.innerHTML = `ゲストとして参加中 (部屋ID: <span style="color:#d9534f;">${id}</span>)`;
-            currentDisplay.onclick = null; // ゲスト時はクリックコピーを無効化（またはホストIDコピーに変更可）
+            currentDisplay.innerHTML = `ゲストとして参加中 (部屋ID: <span style="font-weight: bold; text-decoration: underline;">${id}</span>)`;
+            if (parentDisplay) parentDisplay.onclick = null; // ゲスト時はクリックコピーを一変無効化
         } else {
             currentDisplay.innerText = `部屋ID: ${id} (クリックでコピー)`;
-            currentDisplay.onclick = () => {
-                navigator.clipboard.writeText(id).then(() => {
-                    const originalText = currentDisplay.innerText;
-                    currentDisplay.innerText = "📋 コピーしました！";
-                    setTimeout(() => currentDisplay.innerText = originalText, 1000);
-                }).catch(err => console.error("コピーに失敗しました:", err));
-            };
+            if (parentDisplay) {
+                parentDisplay.onclick = () => {
+                    navigator.clipboard.writeText(id).then(() => {
+                        const originalText = currentDisplay.innerText;
+                        currentDisplay.innerText = "📋 コピーしました！";
+                        setTimeout(() => currentDisplay.innerText = originalText, 1000);
+                    }).catch(err => console.error("コピーに失敗しました:", err));
+                };
+            }
         }
     }
 
@@ -197,9 +188,7 @@ function joinRoom() {
     const nameInput = document.getElementById("name-input");
     window.myPlayerName = nameInput ? nameInput.value.trim() : "ゲスト";
 
-    // 💡 接続を試みるタイミング、または成功したタイミングでホストのID表示に切り替える
-    // ※network-manager.jsの接続成功（open）フック内に記述するのが理想ですが、
-    // ここで先行して書き換えるか、あるいは成功後にnetwork-manager側からこの関数を呼ぶようにしてください。
+    // 💡 接続を試みるタイミングでホストのID表示に切り替える
     updateIdDisplays(targetRoomId, true);
 
     guestJoinRoom(targetRoomId, window.myPlayerName);

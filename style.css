@@ -260,22 +260,52 @@ button:active, .btn-sidebar:active {
 }
 
 /* 🏢 競売ボード（カードと山札） */
+/* ==========================================================================
+   🏢 競売ボード（カードと山札の並び・背景調整）
+   ========================================================================== */
 .auction-board {
     display: flex;
     gap: 15px;
     align-items: center;
+    width: 100%;
 }
+
+/* 物件カード欄全体のコンテナ（上品な白の透明背景を設定） */
 .auction-cards-wrapper {
     flex-grow: 1;
     min-height: 150px;
-    background: rgba(219, 203, 172, 0.3);
-    border: 1px dashed #dcd1be;
-    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.65); /* プレイヤーの場と同じ透明白 */
+    backdrop-filter: blur(4px); 
+    border: 1px solid rgba(225, 215, 193, 0.8);
+    border-radius: 12px;
     padding: 15px;
+    box-sizing: border-box;
+    
+    /* 💡 親要素（コンテナ）を基準に山札を配置するため relative にします */
+    position: relative; 
+    
+    /* 💡 物件カードが右端の山札と被らないように、右側に十分な余白（山札の幅＋隙間分）を確保 */
+    padding-right: 130px; 
+
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
     align-items: center;
+}
+
+/* 💡 山札カードを物件カードの並びから完全に切り離し、右端に固定配置 */
+.deck-pile-card {
+    position: absolute;       /* 💡 自由な位置に固定する設定 */
+    right: 15px;               /* 💡 右端から 15px 離した位置に固定 */
+    top: 50%;                 /* 💡 上下中央に配置するためのベース */
+    transform: translateY(-50%); /* 💡 きれいに上下中央に揃える調整 */
+    
+    width: 92px !important;    /* 下部の .game-card のサイズと統一 */
+    height: 132px !important;  /* 下部の .game-card のサイズと統一 */
+    box-sizing: border-box;
+    border-radius: 8px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+    margin: 0 !important;      /* 余計なマージンをリセット */
 }
 
 /* 山札のビジュアル */

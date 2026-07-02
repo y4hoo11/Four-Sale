@@ -90,14 +90,32 @@ export function updateUI() {
             if (gameContainer) gameContainer.style.display = "none";
         }
     }
-    // 2. 山札（残り枚数）の描画
-    const deckCountNum = document.getElementById("deck-count-num");
-    const deckPileVisual = document.getElementById("deck-pile-visual");    if (deckCountNum && deckPileVisual) {        if (game.isGameStarted && game.deck) {
-            deckCountNum.innerText = game.deck.length;
-            deckPileVisual.style.background = game.phase === "BID" ? "linear-gradient(135deg, #27ae60, #2ecc71)" : "linear-gradient(135deg, #3498db, #2980b9)";
-        } else {
-            deckCountNum.innerText = "--";
-        }
+    // 2. 💡 山札カードの描画制御（残り枚数が 0 より大きい場合のみ表示）
+    const deckCount = (game.isGameStarted && game.deck) ? game.deck.length : 0;
+    
+    if (deckCount > 0) {
+        const deckCard = document.createElement("div");
+        deckCard.id = "deck-pile-visual";
+        // .game-card と山札専用の .deck-pile-card クラスを付与
+        deckCard.className = "game-card deck-pile-card"; 
+        
+        // スタイル設定（薄緑色のデザイン）
+        deckCard.style.background = "#e8f8f5"; 
+        deckCard.style.borderColor = "#2cc7a0";
+        deckCard.style.borderStyle = "dashed";  
+        deckCard.style.display = "flex";
+        deckCard.style.flexDirection = "column";
+        deckCard.style.justifyContent = "center";
+        deckCard.style.alignItems = "center";
+        deckCard.style.position = "relative";
+
+        deckCard.innerHTML = `
+            <div class="card-illustration" style="font-size: 2rem; margin-bottom: 5px;">🎴</div>
+            <div style="font-size: 0.85rem; font-weight: bold; color: #16a085; text-align: center;">
+                残り<br><span style="font-size: 1.2rem;">${deckCount}</span>枚
+            </div>
+        `;
+        listEl.appendChild(deckCard);
     }
 
     // 3. 上部ステータスバー

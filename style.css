@@ -33,18 +33,29 @@ h2, h3 {
     color: #b77c7c; 
 }
 
+/* ==========================================================================
+   部屋ID表示（緑背景・角丸・横長デザインへの修正）
+   ========================================================================== */
 #my-peer-id {
-    font-size: 0.8rem;
-    color: #ffffff;
+    font-size: 0.9rem;          /* 文字サイズを少し見やすく調整 */
+    font-weight: bold;          /* 文字を太字に */
+    color: #ffffff;             /* 白文字 */
     margin-bottom: 15px;
     cursor: pointer;
-    background: rgba(139, 69, 19, 0.6);
-    padding: 4px 10px;
-    border-radius: 20px;
-    transition: background 0.2s;
+    background: #1abc9c;        /* 鮮やかな緑背景に変更（画像に合わせたカラー） */
+    padding: 8px 24px;          /* 上下と左右の余白を広げて横長に */
+    border-radius: 20px;        /* 角をしっかり丸める */
+    display: inline-block;      /* 横幅をテキストと余白にフィットさせる */
+    box-shadow: 0 3px 6px rgba(26,188,156,0.2); /* 軽い陰影をつけてボタン風に */
+    transition: background 0.2s, transform 0.1s;
 }
+
 #my-peer-id:hover { 
-    background: rgba(139, 69, 19, 0.8); 
+    background: #16a085;        /* ホバー時に少し濃い緑にする */
+}
+
+#my-peer-id:active {
+    transform: scale(0.98);     /* クリックした時に少し沈むエフェクト */
 }
 
 .hidden {

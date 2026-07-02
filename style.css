@@ -241,7 +241,7 @@ button:active, .btn-sidebar:active {
 .main-column { display: flex; flex-direction: column; gap: 15px; }
 .sidebar-column { display: flex; flex-direction: column; gap: 10px; }
 
-/* 上部案内バー（過去のstatus-panelクラスにも同時に適用） */
+/* 上部案内バー */
 .top-action-bar, .status-panel {
     background: #e8f8f5;
     color: #2e4053;
@@ -255,16 +255,12 @@ button:active, .btn-sidebar:active {
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-.status-panel { /* 過去互換用クラス */
-    composes: top-action-bar;
-}
-
 /* ==========================================================================
    🏢 物件・小切手エリア（マーケット全体の背景調整と山札の右端固定）
    ========================================================================== */
 
 /* 物件エリア全体を包むコンテナ（プレイヤーの場と同じ透明白背景を適用） */
-.market-container {
+.market-container, .auction-cards-wrapper {
     background: rgba(255, 255, 255, 0.65); /* プレイヤーの場と同じ透明度 */
     backdrop-filter: blur(4px);            /* 後ろを上品にぼかすエフェクト */
     border: 1px solid rgba(225, 215, 193, 0.8);
@@ -280,20 +276,27 @@ button:active, .btn-sidebar:active {
     padding-right: 130px; 
 }
 
-/* カードを横並びにするFlexbox */
-.market-cards {
+.auction-board {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    width: 100%;
+}
+
+.auction-cards-wrapper {
+    flex-grow: 1;
+    min-height: 150px;
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
-    align-items: flex-end;
-    min-height: 132px; /* カードが1枚もない時でも高さを維持 */
+    align-items: center;
 }
 
 /* 💡 山札カードを他の物件カードの並びから完全に切り離し、右端に「孤立」させて固定配置 */
 .deck-pile-card {
-    position: absolute;       /* 💡 親要素（.market-container）を基準に自由配置 */
+    position: absolute;       /* 💡 親要素を基準に自由配置 */
     right: 15px;               /* 💡 右のフチから15px離れた場所に固定 */
-    top: 55%;                 /* 💡 上下中央付近に配置 */
+    top: 50%;                  /* 💡 上下中央に配置 */
     transform: translateY(-50%); /* 💡 きれいに上下中央を揃える調整 */
     
     width: 92px !important;    /* 下部の .game-card のサイズと完全に統一 */
@@ -302,51 +305,6 @@ button:active, .btn-sidebar:active {
     border-radius: 8px;
     box-shadow: 0 3px 8px rgba(0,0,0,0.08);
     margin: 0 !important;      /* Flexboxによる自動マージンや隙間計算をすべて無効化 */
-}
-
-.auction-board {
-    display: flex;
-    gap: 15px;
-    align-items: center;
-    width: 100%;
-}
-
-/* 物件カード欄全体のコンテナ（上品な白の透明背景を設定） */
-.auction-cards-wrapper {
-    flex-grow: 1;
-    min-height: 150px;
-    background: rgba(255, 255, 255, 0.65); /* プレイヤーの場と同じ透明白 */
-    backdrop-filter: blur(4px); 
-    border: 1px solid rgba(225, 215, 193, 0.8);
-    border-radius: 12px;
-    padding: 15px;
-    box-sizing: border-box;
-    
-    /* 💡 親要素（コンテナ）を基準に山札を配置するため relative にします */
-    position: relative; 
-    
-    /* 💡 物件カードが右端の山札と被らないように、右側に十分な余白（山札の幅＋隙間分）を確保 */
-    padding-right: 130px; 
-
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    align-items: center;
-}
-
-/* 💡 山札カードを物件カードの並びから完全に切り離し、右端に固定配置 */
-.deck-pile-card {
-    position: absolute;       /* 💡 自由な位置に固定する設定 */
-    right: 15px;               /* 💡 右端から 15px 離した位置に固定 */
-    top: 50%;                 /* 💡 上下中央に配置するためのベース */
-    transform: translateY(-50%); /* 💡 きれいに上下中央に揃える調整 */
-    
-    width: 92px !important;    /* 下部の .game-card のサイズと統一 */
-    height: 132px !important;  /* 下部の .game-card のサイズと統一 */
-    box-sizing: border-box;
-    border-radius: 8px;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.08);
-    margin: 0 !important;      /* 余計なマージンをリセット */
 }
 
 /* 山札のビジュアル */
@@ -371,23 +329,10 @@ button:active, .btn-sidebar:active {
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
 }
-.bid-box {
-    background: #fdfbf7;
-    border: 1px solid #e1d7c1;
-    padding: 10px;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-}
-.bid-box.current-player {
-    background: #fffdf0;
-    border-color: #f1c40f;
-}
 
 /* ==========================================================================
    🪙 コインプレイエリア（3〜6人対応：横3×縦1〜2の可変グリッド）
    ========================================================================== */
-
 #bid-status-board {
     display: grid;
     /* 💡 常に横3列に固定。人数が4人以上になると自動的に2行目（下段）が作られます */
@@ -521,34 +466,80 @@ button:active, .btn-sidebar:active {
 }
 
 /* 🃏 カードエリアとカード（物件・小切手） */
-.card-area {
+.market-cards,
+.card-area,
+#card-area {
     display: flex;
     justify-content: center;
-    gap: 15px;
-    margin-top: 15px;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-end;
     min-height: 140px;
+    margin-top: 15px;
     margin-bottom: 15px;
 }
+
+/* renderMarket() は .game-card、renderConsoleAndHand() は .card を使っているため両方に適用 */
+.game-card,
+#card-area .card,
 .card {
     position: relative;
-    width: 100px;
-    height: 140px;
+    width: 92px;
+    height: 132px;
     background: #ffffff;
     border: 2px solid #dcd1be;
     border-radius: 8px;
     display: flex;
     flex-direction: column;
+    align-items: center;
     justify-content: space-between;
-    padding: 8px;
+    padding: 6px 8px;
     box-sizing: border-box;
-    cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+    flex-shrink: 0;
+    transition: transform 0.15s, box-shadow 0.15s;
+    cursor: default;
 }
+
+#card-area .card,
+.card {
+    cursor: pointer;
+}
+#card-area .card:hover,
 .card:hover { 
-    transform: translateY(-8px); 
-    box-shadow: 0 8px 20px rgba(139,69,19,0.25); 
+    transform: translateY(-6px); 
+    box-shadow: 0 8px 16px rgba(139,69,19,0.25); 
     border-color: #b77c7c;
+}
+
+/* 💡 カード四隅の数字（絶対配置で各コーナーに固定） */
+.card-num {
+    position: absolute;
+    font-weight: bold;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+.card-num-top-left {
+    top: 6px;
+    left: 8px;
+}
+.card-num-top-right {
+    top: 6px;
+    right: 8px;
+}
+.card-num-bottom-left {
+    bottom: 6px;
+    left: 8px;
+    transform: rotate(180deg); /* その場で逆さに */
+}
+.card-num-bottom-right {
+    bottom: 6px;
+    right: 8px;
+    transform: rotate(180deg); /* その場で逆さに */
+}
+.card-illustration {
+    font-size: 2rem;
+    line-height: 1;
 }
 
 /* ==========================================================================
@@ -632,6 +623,7 @@ button:active, .btn-sidebar:active {
     justify-content: center;
     align-items: center;
     min-height: 60px;
+    grid-column: 1 / span 2;
 }
 .game-top-center {
     display: flex;
@@ -644,7 +636,7 @@ button:active, .btn-sidebar:active {
     display: flex;
     gap: 8px;
 }
-/* 💡 離脱ボタンを絶対配置で右端に固定し、中央ブロックの幅計算から切り離す */
+/* 💡 離退ボタンを絶対配置で右端に固定し、中央ブロックの幅計算から切り離す */
 .game-top-leave-btn {
     position: absolute;
     right: 15px;
@@ -681,76 +673,6 @@ button:active, .btn-sidebar:active {
 }
 
 /* ==========================================================================
-   🃏 カードデザイン（物件・小切手：角に数字、中央に絵柄、上下逆さ表記）
-   ========================================================================== */
-.market-cards,
-#card-area {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: flex-end;
-    min-height: 90px;
-}
-/* renderMarket() は .game-card、renderConsoleAndHand() は .card を使っているため両方に適用 */
-.game-card,
-#card-area .card {
-    position: relative;
-    width: 92px;
-    height: 132px;
-    background: #ffffff;
-    border: 2px solid #dcd1be;
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 8px;
-    box-sizing: border-box;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.12);
-    flex-shrink: 0;
-    transition: transform 0.15s, box-shadow 0.15s;
-    cursor: default;
-}
-#card-area .card {
-    cursor: pointer;
-}
-#card-area .card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 8px 16px rgba(139,69,19,0.25);
-    border-color: #b77c7c;
-}
-/* 💡 左右2つの数字を並べる行（上段・下段共通） */
-/* 💡 カード四隅の数字（絶対配置で各コーナーに固定） */
-.card-num {
-    position: absolute;
-    font-weight: bold;
-    font-size: 1.1rem;
-    line-height: 1;
-}
-.card-num-top-left {
-    top: 6px;
-    left: 8px;
-}
-.card-num-top-right {
-    top: 6px;
-    right: 8px;
-}
-.card-num-bottom-left {
-    bottom: 6px;
-    left: 8px;
-    transform: rotate(180deg); /* その場で逆さに */
-}
-.card-num-bottom-right {
-    bottom: 6px;
-    right: 8px;
-    transform: rotate(180deg); /* その場で逆さに */
-}
-.card-illustration {
-    font-size: 2rem;
-    line-height: 1;
-}
-
-/* ==========================================================================
    🎮 ゲームボード全体のグリッド構造（右側にプレイヤーサイドバーを配置）
    ========================================================================== */
 .game-board {
@@ -758,9 +680,6 @@ button:active, .btn-sidebar:active {
     grid-template-columns: 1fr 240px;
     gap: 15px;
     align-items: start;
-}
-.game-top-bar {
-    grid-column: 1 / span 2;
 }
 .game-main-area {
     grid-column: 1;

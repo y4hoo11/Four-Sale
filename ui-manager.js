@@ -447,9 +447,6 @@ function renderConsoleAndHand() {
             me.hand.forEach((val) => {
                 const card = document.createElement("div");
                 card.className = "card";
-                card.style.display = "inline-block";
-                card.style.margin = "5px";
-                card.style.background = "#fff";
                 card.innerHTML = `
                     <div class="card-top-num">${val}</div>
                     <div class="card-illustration">${getCardEmoji(val)}</div>

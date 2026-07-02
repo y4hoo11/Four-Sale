@@ -649,12 +649,16 @@ export function guestJoinRoom(targetRoomId, myName) {
     });
 
     conn.on("data", (data) => {
-        let parsedData = data;
-        if (typeof data === "string") {
-            try { parsedData = JSON.parse(data); } catch(e) {}
-        }
-        handleGuestReceiveData(parsedData);
-    });
+        let parsedData = data;
+        if (typeof data === "string") {
+            try {
+                parsedData = safeDecode(data);
+            } catch(e) {
+                console.error("🚨 デコード失敗:", e);
+            }
+        }
+        handleGuestReceiveData(parsedData);
+    });
 
     conn.on("close", () => {
         if (isMigrating) {

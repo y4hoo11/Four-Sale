@@ -381,17 +381,18 @@ function renderConsoleAndHand() {
         const currentHighest = Math.max(...game.players.map(p => Number(p.bid || 0)), 0);
         const minNeed = currentHighest + 1;
         const myCurrentBid = me.bid || 0;
-
+        const canAffordBid = me.coins >= minNeed; // 💡 最低入札額を支払えるか
         if (consoleInfo) {
             consoleInfo.innerHTML = `あなたの現在の入札値: <strong>${myCurrentBid}</strong> k$ | あなたの手持ちコイン: <strong>${me.coins}</strong> 枚 | 次に必要な最低値: <strong>${minNeed}</strong> k$`;
         }
-
         const bidBtn = document.getElementById("submit-bid-btn");
         const passBtn = document.getElementById("submit-pass-btn");
-
         if (bidBtn && passBtn) {
             if (isMyTurn && !me.hasPassed) {
-                bidBtn.disabled = false;
+                // 💡 手持ちが足りない場合は入札ボタン自体を非表示に（パスのみ表示）
+                bidBtn.style.display = canAffordBid ? "inline-block" : "none";
+                passBtn.style.display = "inline-block";
+                bidBtn.disabled = !canAffordBid;
                 passBtn.disabled = false;
                 bidBtn.onclick = () => {
                     if (currentSelectedCoins < minNeed) {
@@ -406,41 +407,65 @@ function renderConsoleAndHand() {
                 };
                 passBtn.onclick = () => { executePlayCard(-1, {}); };
             } else {
+                bidBtn.style.display = "none";
+                passBtn.style.display = "none";
                 bidBtn.disabled = true;
                 passBtn.disabled = true;
             }
         }
-
         if (me.hasPassed) {
             cardArea.innerHTML = "<p style='color:#7f8c8d;'>このラウンドはパスアウトしました。全員の競り終了を待っています...</p>";
             return;
         }
-
+        // 💡 自分のターンになったら、選択枚数を「最低入札額」に自動セット（支払える場合のみ）
+        if (isMyTurn && canAffordBid && currentSelectedCoins < minNeed) {
+            currentSelectedCoins = minNeed;
+        }
         const coinContainer = document.createElement("div");
         coinContainer.className = "coin-buttons";
-
         for (let i = 1; i <= me.coins; i++) {
             const coinBtn = document.createElement("div");
             coinBtn.className = "coin-btn";
-            if (currentSelectedCoins === i) coinBtn.classList.add("active");
+            // 💡 支払える場合のみ、選択中の枚数とその左側を赤縁ハイライト
+            if (canAffordBid && i <= currentSelectedCoins) coinBtn.classList.add("active");
             coinBtn.innerHTML = `<span>${i}</span><span style="font-size:0.5rem;opacity:0.7;">k$</span>`;
-            if (isMyTurn) {
+            if (isMyTurn && canAffordBid && i >= minNeed) {
                 coinBtn.onclick = () => { currentSelectedCoins = i; renderConsoleAndHand(); };
             } else {
-                coinBtn.style.cursor = "not-allowed";
-                coinBtn.style.opacity = "0.7";
+                coinBtn.classList.add("coin-disabled");
             }
             coinContainer.appendChild(coinBtn);
         }
-        if (currentSelectedCoins < minNeed && me.coins >= minNeed) currentSelectedCoins = minNeed;
         cardArea.appendChild(coinContainer);
     } else {
         if (consoleInfo) consoleInfo.innerHTML = "提示する物件カード（手札）を1枚選んで場に出してください。";
         
         const bidBtn = document.getElementById("submit-bid-btn");
         const passBtn = document.getElementById("submit-pass-btn");
-        if (bidBtn) bidBtn.disabled = true;
-        if (passBtn) passBtn.disabled = true;
+        if (bidBtn && passBtn) {
+            if (isMyTurn && !me.hasPassed) {
+                bidBtn.style.display = "inline-block";
+                passBtn.style.display = "inline-block";
+                bidBtn.disabled = false;
+                passBtn.disabled = false;
+                bidBtn.onclick = () => {
+                    if (currentSelectedCoins < minNeed) {
+                        return;
+                    }
+                    if (currentSelectedCoins > me.coins) {
+                        alert("手持ちのコイン以上の入札はできません。");
+                        return;
+                    }
+                    executePlayCard(currentSelectedCoins, {});
+                };
+                passBtn.onclick = () => { executePlayCard(-1, {}); };
+            } else {
+                bidBtn.style.display = "none";
+                passBtn.style.display = "none";
+                bidBtn.disabled = true;
+                passBtn.disabled = true;
+            }
+        }
 
         if (me.hasPassed) {
             cardArea.innerHTML = "<p style='color:#2ecc71;'>物件を提示しました。全員のオープンを待っています...</p>";

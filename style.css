@@ -439,9 +439,11 @@ button:active, .btn-sidebar:active {
 }
 .coin-btn.active {
     border: 2px solid #e74c3c;
-    box-shadow: 0 0 8px rgba(231,76,60,0.5);
-    transform: translateY(-2px);
-    background: linear-gradient(135deg, #fdf2e9, #fadbd8);
+}
+/* 💡 選択できない（最低入札額未満の）コインの見た目 */
+.coin-btn.coin-disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
 }
 
 /* 🃏 カードエリアとカード（物件・小切手） */

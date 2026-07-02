@@ -43,6 +43,22 @@ export function setConnections(conn) { 
 }
 export function setConnToHost(conn) { connToHost = conn; }
 
+// マルチバイト文字(絵文字・日本語)を含むJSON文字列を安全にBase64化する
+function safeEncode(obj) {
+    const jsonStr = JSON.stringify(obj);
+    return btoa(encodeURIComponent(jsonStr).replace(/%([0-9A-F]{2})/g,
+        (_, p1) => String.fromCharCode(parseInt(p1, 16))
+    ));
+}
+function safeDecode(b64Str) {
+    const jsonStr = decodeURIComponent(
+        Array.prototype.map.call(atob(b64Str), c =>
+            '%' + c.charCodeAt(0).toString(16).padStart(2, '0')
+        ).join('')
+    );
+    return JSON.parse(jsonStr);
+}
+
 // ホストがデータを受信した時の処理
 export function handleHostReceiveData(conn, data) {
     if (!isHost) return;
@@ -444,19 +460,13 @@ function sendStateToSingleConnection(conn) {
         secretView: secretViewData ? JSON.parse(JSON.stringify(secretViewData)) : null
     };
 
-    // 🔬 【最終送信テスト】パケット全体のシリアライズが本当に成功するかチェック
     try {
-        const finalCheckJson = JSON.stringify(payload);
-        console.log("✈️ 【ホスト送信直前】パケット全体のシリアライズに完全成功しました！文字数:", finalCheckJson.length);
-        
-        // 💡 確実に文字化（JSON化）して送ることで、PeerJSの内部シリアライズによる消失バグを完全にすり抜ける
-        conn.send(finalCheckJson);
-    } catch (sendSerializeError) {
-        console.error("🚨 致命的：パケット全体の送信（JSON化）に失敗しました。原因:", sendSerializeError);
-        
-        // 万が一のフォールバック（生のまま送る）
-        try { conn.send(payload); } catch(e){}
-    }
+        const encoded = safeEncode(payload);
+        console.log("✈️ 送信直前エンコード成功。文字数:", encoded.length);
+        conn.send(encoded);
+    } catch (sendSerializeError) {
+        console.error("🚨 送信エンコードに失敗しました:", sendSerializeError);
+    }
 }
 
 // ホストから全ゲストへ状態をブロードキャスト
@@ -710,8 +720,8 @@ export function transferHostPrivilege(newHostId) {
         })
     };
 
-    const payloadStr = JSON.stringify(payload);
     isMigrating = true;
+    const payloadStr = safeEncode(payload);
     guestConnections.forEach(conn => {
         if (conn.open) conn.send(payloadStr);
     });

@@ -269,102 +269,96 @@ button:active, .btn-sidebar:active {
     box-sizing: border-box;
     align-items: stretch; /* 🛠️ 左右の背景パネルの縦の長さを「完全に同じ高さ」に同期させる */
 }
+/* ==========================================================================
+   🏢 競売・山札エリアの完全セパレートグリッド（重複を排除した正常版）
+   ========================================================================== */
+
+/* 💡 左右のコンテナを包む親コンテナ（本家BGA互換） */
+.auction-board-wrapper,
+.auction-board { /* HTML側のクラス名がどちらでも動くように両方指定 */
+    display: grid;
+    /* 左側（物件）は伸縮するメイン領域、右側（山札）はカード1枚分より少し大きい120pxに固定 */
+    grid-template-columns: 1fr 120px;
+    gap: 15px; /* 中央の美しい「区切り」の隙間幅 */
+    width: 100%;
+    box-sizing: border-box;
+    align-items: stretch; /* 🛠️ 左右の背景パネルの縦の長さを「完全に同じ高さ」に強制同期 */
+    margin-bottom: 20px;
+}
 
 /* 💡 【左側背景】文字と物件カード群を包む広い半透明パネル */
-.market-container, 
-.auction-cards-wrapper {
-    /* 🛠️ 右側と完全に統一された半透明の白背景 */
-    background: rgba(255, 255, 255, 0.65) !important;
+.market-container {
+    background: rgba(255, 255, 255, 0.65);
     backdrop-filter: blur(4px);
-    border: 1px solid rgba(225, 215, 193, 0.8) !important;
+    border: 1px solid rgba(225, 215, 193, 0.8);
     border-radius: 12px;
-    
-    padding: 12px 15px;
+    padding: 15px;
     box-sizing: border-box;
-    margin-bottom: 0; /* 隙間は親の grid gap に任せるためリセット */
     
-    /* 内部の「文字」と「カード」を上下2層に分ける設定 */
+    /* 内部の「タイトル文字」と「カード」を上下2層にする */
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    align-items: flex-start; /* 左寄せ */
+    justify-content: flex-start;
+    align-items: flex-start;
     
-    /* 縦の最低高さを定義（文字＋隙間＋カードの合計値） */
-    min-height: 180px;
-    flex-grow: 1;
+    min-height: 180px; /* 本家風のゆったりした最低高さを確保 */
 }
 
-/* 左上の角に配置されるテキストラベル（「競売にかけられた物件」） */
-.market-container h3,
-.auction-cards-wrapper h3,
+/* 左上のテキストラベル「競売にかけられた物件」 */
 .market-title {
-    margin: 0 0 8px 0;
-    font-size: 0.95rem;
+    margin: 0 0 15px 0; /* 下のカードとの間に綺麗な隙間を空ける */
+    font-size: 1rem;
     font-weight: bold;
     color: #7e5109;
-    align-self: flex-start;
 }
 
-/* テキストラベルの下に物件カードを横並びにするFlexbox */
-.market-cards,
-#card-area-auction {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    width: 100%;
+/* 物件カードが横並びに美しく並ぶ設定（文字の直下に配置される） */
+.market-container .game-card, 
+.market-container .card { 
+    display: inline-block;
+    margin-right: 10px;
 }
 
 /* 💡 【右側背景】山札を包む完全独立した専用の背景パネル */
-#deck-pile-visual {
-    grid-column: 2; /* グリッドの2列目（右側）に強制配置 */
-    
-    /* 🛠️ 左側の物件コンテナと「全く同じ色・全く同じ質感」に統一 */
-    background: rgba(255, 255, 255, 0.65) !important;
-    backdrop-filter: blur(4px) !important;
-    border: 1px solid rgba(225, 215, 193, 0.8) !important;
+#deck-pile-container,
+#deck-pile-visual { /* JSの生成するID名に合わせて両方対応 */
+    /* 🛠️ 左側の物件コンテナと「全く同じ色・全く同じ質感」にして美しさを同期 */
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(225, 215, 193, 0.8);
     border-radius: 12px;
     
-    padding: 8px;
+    padding: 10px;
     box-sizing: border-box;
     
-    /* 🛠️ 左側のコンテナと高さを完全に一致させ、四隅のラインを揃える指定 */
-    width: 110px !important;
-    min-height: 180px; /* 左側と同じ最低高さを保証 */
-    
-    /* 過去の absolute 配置による固定位置やマージンの干渉をリセット */
-    position: static !important;
-    transform: none !important;
-    margin: 0 !important;
-    
-    /* パネルの内部で山札カードを上下左右中央にジャスト配置 */
-    display: flex !important;
+    /* パネルの内部で、中の山札カードを綺麗に上下左右中央に配置する */
+    display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
 }
 
-/* 💡 山札カードのビジュアル（ご指定の「薄緑・ライトグリーン」デザイン） */
+/* 💡 山札カードのビジュアル（ご指定の「薄緑・ライトグリーン」） */
 .deck-card {
-    width: 92px;   /* 他のゲームカードとサイズを完全統一 */
-    height: 132px;  /* 他のゲームカードとサイズを完全統一 */
+    width: 92px;   /* 他の物件カードの横幅と完全に一致させる */
+    height: 132px;  /* 他の物件カードの縦幅と完全に一致させる */
     
-    /* 🛠️ 元の濃い緑から、目に優しい爽やかな薄緑（ペールグリーン）のグラデーションへ変更 */
+    /* 爽やかで上品な薄緑のグラデーション */
     background: linear-gradient(135deg, #a3e4d7 0%, #76d7c4 100%);
     border: 2px solid #ffffff;
     border-radius: 8px;
-    box-shadow: 2px 4px 8px rgba(0,0,0,0.1);
+    box-shadow: 2px 4px 8px rgba(0,0,0,0.12);
     box-sizing: border-box;
     
-    /* 文字の装飾（白文字＋可読性のための薄いシャドウ） */
+    /* カード内のテキストデザイン */
     color: #ffffff;
     font-weight: bold;
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.15);
-    
+    font-size: 0.85rem;
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     align-items: center;
-    justify-content: center;
+    padding: 8px 4px;
 }
 
 /* 💬 入札状況ログ・ステータス表示グリッド */

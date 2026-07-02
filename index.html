@@ -1,8 +1,8 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>フォーセール (For Sale) P2P</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="./style.css">
@@ -10,9 +10,9 @@
 <body>
 
     <h1>🏢 FOR SALE (フォーセール)</h1>
-    <div id="my-peer-id" style="margin-bottom: 20px; font-weight: bold; background: #16a085; padding: 5px 15px; border-radius: 20px; cursor: pointer;">部屋IDを生成中...</div>
+    <div id="my-peer-id">部屋IDを生成中...</div>
 
-    <div id="setup-container" class="panel-container">
+    <div id="setup-container" class="panel-light">
         <h2>ルームセットアップ</h2>
         
         <div class="input-group">
@@ -20,7 +20,7 @@
             <input type="text" id="name-input" value="プレイヤー">
         </div>
         
-        <hr style="border-color: #2c3e50; margin: 20px 0;">
+        <hr style="border: none; border-top: 1px solid #e1d7c1; margin: 20px 0;">
         
         <button id="be-host-btn" class="btn-primary" style="margin-bottom: 15px;">🏠 新しい部屋を作る (ホスト)</button>
         
@@ -31,7 +31,7 @@
         <button id="join-room-btn" class="btn-secondary">🌐 友達の部屋に入る (ゲスト)</button>
     </div>
 
-    <div id="lobby-container" class="panel-container" style="display: none;">
+    <div id="lobby-container" class="panel-light" style="display: none;">
         <div class="lobby-header-container">
             <h2>📋 待機ロビー</h2>
             <button id="lobby-leave-btn" class="btn-danger">部屋を離脱</button>
@@ -42,7 +42,7 @@
         <button id="start-game-btn" class="btn-primary" style="display: none; margin-top: 20px; font-size: 1.2rem; padding: 15px;">🎮 ゲーム開始</button>
     </div>
 
-    <div id="game-container" style="display: none; width: 100%; max-width: 1100px;">
+    <div id="game-container" style="display: none;">
         <div class="game-board">
         
             <div class="game-top-bar">
@@ -50,7 +50,7 @@
                 <div class="game-top-center">
                     <div id="role-display" class="game-status-text">あなたのアクションを選んでください</div>
                     <div class="game-top-actions">
-                        <button id="submit-bid-btn" class="btn-secondary" style="background:#3498db;">入札</button>
+                        <button id="submit-bid-btn" class="btn-secondary">入札</button>
                         <button id="submit-pass-btn" class="btn-danger">パス</button>
                     </div>
                 </div>
@@ -60,31 +60,31 @@
             <div class="game-main-area">
             
                 <div class="market-and-deck">
-                    <div class="market-container">
-                        <div id="market-title-text" class="market-title">競売にかけられた物件</div>
-                        <div id="card-tracker-list" class="market-cards">
-                            </div>
+                    <div class="auction-board-wrapper">
+                        <div class="market-container">
+                            <h3 id="market-title-text" class="market-title">競売にかけられた物件</h3>
+                            <div id="card-tracker-list" class="market-cards"></div>
+                        </div>
+                        
+                        <div id="deck-pile-container"></div>
                     </div>
                 </div>
 
-                <div id="bid-status-board" class="bid-status-board">
-                    </div>
+                <div id="bid-status-board"></div>
 
                 <div class="player-console-area">
                     <div id="console-info-text" class="console-info-text">
                         あなたの現在の入札値: 0 k$ | あなたの手持ちコイン: 14 k$ | 入札の最低値: 1 k$
                     </div>
-                    <div id="card-area">
-                        </div>
+                    <div id="card-area"></div>
                 </div>
 
             </div>
 
-            <div id="game-side-players" class="game-side-players">
-                </div>
+            <div id="game-side-players" class="game-side-players"></div>
 
             <div style="grid-column: 1 / span 2; width: 100%;">
-                <div id="game-log"></div>
+                <div id="log-box"></div>
             </div>
         
             <div class="host-abort-wrapper">

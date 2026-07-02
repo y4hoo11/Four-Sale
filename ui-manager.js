@@ -328,10 +328,11 @@ function renderMarket() {
     if (!listEl) return;
     listEl.innerHTML = "";
     
-    // 💡 親コンテナ（.market-container）を取得して、過去の古い山札要素が残っていれば綺麗に削除する
-    const marketContainer = listEl.parentElement;
-    const oldDeck = document.getElementById("deck-pile-visual");
-    if (oldDeck) oldDeck.remove();
+    // 💡 修正：右側に新設した「山札専用の完全独立コンテナ」を直接取得する
+    const deckContainer = document.getElementById("deck-pile-container");
+    if (deckContainer) {
+        deckContainer.innerHTML = ""; // 前のラウンドの古い山札を綺麗に掃除
+    }
     
     if (game.phase === "BID") {
         if (titleEl) titleEl.innerText = "競売にかけられた物件";
@@ -341,7 +342,7 @@ function renderMarket() {
     
     const displayMarket = game.phase === "SELL" ? [...(game.market || [])].reverse() : (game.market || []);
     
-    // 1. 通常のカードをレンダリング
+    // 1. 通常のカード（物件または小切手）をレンダリング
     if (displayMarket.length === 0) {
         const emptyText = document.createElement("p");
         emptyText.style.color = "#7f8c8d";
@@ -376,33 +377,22 @@ function renderMarket() {
         });
     }
     
-    // 2. 💡 山札カードの描画制御（残り枚数が 0 より大きい場合のみ表示）
+    // 2. 💡 山札カードの描画制御（残り枚数が 0 より大きい場合のみ、右側専用枠へ描画）
     const deckCount = (game.isGameStarted && game.deck) ? game.deck.length : 0;
     
-    if (deckCount > 0 && marketContainer) {
+    if (deckCount > 0 && deckContainer) {
         const deckCard = document.createElement("div");
-        deckCard.id = "deck-pile-visual";
-        deckCard.className = "game-card deck-pile-card"; 
+        deckCard.className = "deck-card"; // 🎴 先ほどCSSで定義した「薄緑・サイズ固定」の専用クラス
         
-        deckCard.style.background = "#e8f8f5"; 
-        deckCard.style.borderColor = "#2cc7a0";
-        deckCard.style.borderStyle = "dashed";  
-        deckCard.style.display = "flex";
-        deckCard.style.flexDirection = "column";
-        deckCard.style.justifyContent = "center";
-        deckCard.style.alignItems = "center";
-
         deckCard.innerHTML = `
-            <div class="card-num card-num-top-left" style="color:#2cc7a0; font-size:0.75rem;">🎴</div>
-            <div class="card-num card-num-top-right" style="color:#2cc7a0; font-size:0.75rem;">x${deckCount}</div>
+            <div style="font-size:0.75rem; opacity:0.8;">🎴</div>
             <div class="card-illustration" style="font-size: 2rem; margin: 5px 0;">🎴</div>
-            <div style="font-size: 0.75rem; font-weight: bold; color: #16a085;">残り ${deckCount} 枚</div>
-            <div class="card-num card-num-bottom-left" style="color:#2cc7a0; font-size:0.75rem;">x${deckCount}</div>
-            <div class="card-num card-num-bottom-right" style="color:#2cc7a0; font-size:0.75rem;">🎴</div>
+            <div style="font-size: 0.75rem; font-weight: bold;">残り ${deckCount} 枚</div>
+            <div style="font-size:0.75rem; opacity:0.8;">x${deckCount}</div>
         `;
         
-        // 💡 修正：カードリストではなく、親コンテナに直接追加して右端に固定
-        marketContainer.appendChild(deckCard);
+        // 💡 修正：左の物件エリアではなく、右の「山札専用コンテナ」に直接追加
+        deckContainer.appendChild(deckCard);
     }
 }
 

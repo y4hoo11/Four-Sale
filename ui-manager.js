@@ -325,19 +325,18 @@ function renderMarket() {
     const titleEl = document.getElementById("market-title-text");
     if (!listEl) return;
     listEl.innerHTML = "";
-
     if (game.phase === "BID") {
         if (titleEl) titleEl.innerText = "競売にかけられた物件";
     } else {
         if (titleEl) titleEl.innerText = "オープンされた小切手 (ドル札)";
     }
-
     if (!game.market || game.market.length === 0) {
         listEl.innerHTML = "<p style='color:#7f8c8d;'>場にオープンされたカードはありません</p>";
         return;
     }
-
-    game.market.forEach(val => {
+    // 💡 BIDフェーズ：左から昇順（小さい順）。SELLフェーズ：左から降順（大きい順）
+    const displayMarket = game.phase === "SELL" ? [...game.market].reverse() : game.market;
+    displayMarket.forEach(val => {
         const card = document.createElement("div");
         card.className = "game-card";
         
@@ -426,8 +425,12 @@ function renderConsoleAndHand() {
         for (let i = 1; i <= me.coins; i++) {
             const coinBtn = document.createElement("div");
             coinBtn.className = "coin-btn";
-            // 💡 支払える場合のみ、選択中の枚数とその左側を赤縁ハイライト
-            if (canAffordBid && i <= currentSelectedCoins) coinBtn.classList.add("active");
+            // 💡 支払える場合のみハイライト：選択中の1枚は濃い赤縁、その左側は薄い赤縁
+            if (canAffordBid && i === currentSelectedCoins) {
+                coinBtn.classList.add("active");
+            } else if (canAffordBid && i < currentSelectedCoins) {
+                coinBtn.classList.add("active-faded");
+            }
             coinBtn.innerHTML = `<span>${i}</span><span style="font-size:0.5rem;opacity:0.7;">k$</span>`;
             if (isMyTurn && canAffordBid && i >= minNeed) {
                 coinBtn.onclick = () => { currentSelectedCoins = i; renderConsoleAndHand(); };

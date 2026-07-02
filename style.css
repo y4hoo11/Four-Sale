@@ -440,7 +440,10 @@ button:active, .btn-sidebar:active {
 .coin-btn.active {
     border: 2px solid #e74c3c;
 }
-/* 💡 選択できない（最低入札額未満の）コインの見た目 */
+/* 💡 選択位置より左側（選択枚数未満）のコインは、縁を薄い赤に */
+.coin-btn.active-faded {
+    border: 2px solid rgba(231, 76, 60, 0.35);
+}
 .coin-btn.coin-disabled {
     cursor: not-allowed;
     opacity: 0.4;

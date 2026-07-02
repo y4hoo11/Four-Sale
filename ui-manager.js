@@ -330,38 +330,47 @@ function renderMarket() {
     } else {
         if (titleEl) titleEl.innerText = "オープンされた小切手 (ドル札)";
     }
-    if (!game.market || game.market.length === 0) {
+    const displayMarket = game.phase === "SELL" ? [...(game.market || [])].reverse() : (game.market || []);
+    if (displayMarket.length === 0) {
         listEl.innerHTML = "<p style='color:#7f8c8d;'>場にオープンされたカードはありません</p>";
-        return;
+    } else {
+        displayMarket.forEach(val => {
+            const card = document.createElement("div");
+            card.className = "game-card";
+            if (game.phase === "BID") {
+                card.style.background = "#fff";
+                card.innerHTML = `
+                    <div class="card-num card-num-top-left">${val}</div>
+                    <div class="card-num card-num-top-right">${val}</div>
+                    <div class="card-illustration">${getCardEmoji(val)}</div>
+                    <div class="card-num card-num-bottom-left">${val}</div>
+                    <div class="card-num card-num-bottom-right">${val}</div>
+                `;
+            } else {
+                card.style.background = "#d4efdf";
+                card.style.borderColor = "#27ae60";
+                card.innerHTML = `
+                    <div class="card-num card-num-top-left" style="color:#27ae60;">$${val}k</div>
+                    <div class="card-num card-num-top-right" style="color:#27ae60;">$${val}k</div>
+                    <div class="card-illustration">💵</div>
+                    <div class="card-num card-num-bottom-left" style="color:#27ae60;">$${val}k</div>
+                    <div class="card-num card-num-bottom-right" style="color:#27ae60;">$${val}k</div>
+                `;
+            }
+            listEl.appendChild(card);
+        });
     }
-    // 💡 BIDフェーズ：左から昇順（小さい順）。SELLフェーズ：左から降順（大きい順）
-    const displayMarket = game.phase === "SELL" ? [...game.market].reverse() : game.market;
-    displayMarket.forEach(val => {
-        const card = document.createElement("div");
-        card.className = "game-card";
-        
-        if (game.phase === "BID") {
-            card.style.background = "#fff";
-            card.innerHTML = `
-                <div class="card-num card-num-top-left">${val}</div>
-                <div class="card-num card-num-top-right">${val}</div>
-                <div class="card-illustration">${getCardEmoji(val)}</div>
-                <div class="card-num card-num-bottom-left">${val}</div>
-                <div class="card-num card-num-bottom-right">${val}</div>
-            `;
-        } else {
-            card.style.background = "#d4efdf";
-            card.style.borderColor = "#27ae60";
-            card.innerHTML = `
-                <div class="card-num card-num-top-left" style="color:#27ae60;">$${val}k</div>
-                <div class="card-num card-num-top-right" style="color:#27ae60;">$${val}k</div>
-                <div class="card-illustration">💵</div>
-                <div class="card-num card-num-bottom-left" style="color:#27ae60;">$${val}k</div>
-                <div class="card-num card-num-bottom-right" style="color:#27ae60;">$${val}k</div>
-            `;
-        }
-        listEl.appendChild(card);
-    });
+    // 💡 山札カードを毎回動的に生成し、常に一覧の末尾に追加する
+    const deckCard = document.createElement("div");
+    deckCard.id = "deck-pile-visual";
+    deckCard.className = "game-card deck-pile-card";
+    deckCard.innerHTML = `
+        <div class="card-illustration">🎴</div>
+        <div class="deck-pile-label">FOR SALE</div>
+        <div id="deck-count-num" class="deck-pile-count">${game.isGameStarted && game.deck ? game.deck.length : "--"}</div>
+        <div class="deck-pile-label">残り枚数</div>
+    `;
+    listEl.appendChild(deckCard);
 }
 
 function renderConsoleAndHand() {

@@ -75,6 +75,17 @@ export function updateUI() {
     const lobbyContainer = document.getElementById("lobby-container");
     const gameContainer = document.getElementById("game-container");
 
+    // 👑 【ここを追加：リアルタイムホストID同期】
+    // 権限譲渡などが発生した際、最新のプレイヤーリストから現在ホスト権限を持つ人のIDを割り出し、
+    // ロビー内の部屋ID表示（赤文字）に即座に反映します。
+    if (rawPlayerList && Array.isArray(rawPlayerList)) {
+        const currentHost = rawPlayerList.find(p => p.isHost === true);
+        const lobbyDisplay = document.getElementById("lobby-current-room-id");
+        if (currentHost && currentHost.id && lobbyDisplay) {
+            lobbyDisplay.textContent = currentHost.id;
+        }
+    }
+
     // 0. まだ自分のID（ログイン情報）がない場合は初期画面
     if (!window.myId) {
         if (setupContainer) setupContainer.style.display = "block";
@@ -273,16 +284,13 @@ function renderBidStatusBoard() {
     if (!boardEl) return;
     boardEl.innerHTML = "";
 
-    // game.players の人数に応じてループを回し、自動的に配置されます
     game.players.forEach(p => {
         const box = document.createElement("div");
         box.className = "bid-box";
         
-        // 状態に応じたクラス付与
         if (p.id === window.myId) box.classList.add("current-player");
         if (game.phase === "BID" && p.hasPassed) box.classList.add("passed-out");
 
-        // 1. テキスト情報の構築
         const textContainer = document.createElement("div");
         textContainer.style.fontSize = "0.85rem";
         
@@ -295,15 +303,12 @@ function renderBidStatusBoard() {
         }
         box.appendChild(textContainer);
 
-        // 2. コインを並べるためのプールコンテナの作成
         const coinPool = document.createElement("div");
         coinPool.className = "coin-pool";
         box.appendChild(coinPool);
 
-        // ボードにプレイヤー枠を追加
         boardEl.appendChild(box);
 
-        // 3. BID（競り）フェーズのみ、入札額に応じたコインのフェードイン生成
         if (game.phase === "BID") {
             const coinCount = p.bid || 0;
             
@@ -313,7 +318,6 @@ function renderBidStatusBoard() {
                 coin.innerText = "1k";
                 coinPool.appendChild(coin);
 
-                // 1枚ずつわずかにディレイ（時間差）を作る
                 setTimeout(() => {
                     coin.classList.add("fade-in-active");
                 }, i * 40);
@@ -328,10 +332,9 @@ function renderMarket() {
     if (!listEl) return;
     listEl.innerHTML = "";
     
-    // 💡 修正：右側に新設した「山札専用の完全独立コンテナ」を直接取得する
     const deckContainer = document.getElementById("deck-pile-container");
     if (deckContainer) {
-        deckContainer.innerHTML = ""; // 前のラウンドの古い山札を綺麗に掃除
+        deckContainer.innerHTML = ""; 
     }
     
     if (game.phase === "BID") {
@@ -342,7 +345,6 @@ function renderMarket() {
     
     const displayMarket = game.phase === "SELL" ? [...(game.market || [])].reverse() : (game.market || []);
     
-    // 1. 通常のカード（物件または小切手）をレンダリング
     if (displayMarket.length === 0) {
         const emptyText = document.createElement("p");
         emptyText.style.color = "#7f8c8d";
@@ -377,12 +379,11 @@ function renderMarket() {
         });
     }
     
-    // 2. 💡 山札カードの描画制御（残り枚数が 0 より大きい場合のみ、右側専用枠へ描画）
     const deckCount = (game.isGameStarted && game.deck) ? game.deck.length : 0;
     
     if (deckCount > 0 && deckContainer) {
         const deckCard = document.createElement("div");
-        deckCard.className = "deck-card"; // 🎴 先ほどCSSで定義した「薄緑・サイズ固定」の専用クラス
+        deckCard.className = "deck-card"; 
         
         deckCard.innerHTML = `
             <div style="font-size:0.75rem; opacity:0.8;">🎴</div>
@@ -391,7 +392,6 @@ function renderMarket() {
             <div style="font-size:0.75rem; opacity:0.8;">x${deckCount}</div>
         `;
         
-        // 💡 修正：左の物件エリアではなく、右の「山札専用コンテナ」に直接追加
         deckContainer.appendChild(deckCard);
     }
 }

@@ -256,79 +256,83 @@ button:active, .btn-sidebar:active {
 }
 
 /* ==========================================================================
-   🏢 物件・小切手エリア（文字を左上、カードをその下、右側に山札背景を完全独立）
+   🏢 物件・小切手エリア（背景完全分離・同色同高・山札を薄緑に調整）
    ========================================================================== */
 
 /* 💡 物件エリアと山札エリアを横に並べるための最外枠（親コンテナ） */
 .auction-board {
     display: grid;
-    /* 左側（メイン）は残り全部の幅、右側（山札）は110pxで固定し、区切り（gap）を15pxに設定 */
+    /* 左側（メイン）は残り全部の幅、右側（山札枠）は110pxで固定。中央の区切り隙間を15pxに */
     grid-template-columns: 1fr 110px;
     gap: 15px;
     width: 100%;
     box-sizing: border-box;
-    align-items: stretch; /* 左右の背景パネルの縦の長さを美しく揃える */
+    align-items: stretch; /* 🛠️ 左右の背景パネルの縦の長さを「完全に同じ高さ」に同期させる */
 }
 
-/* 💡 【左側・残り全部】文字と物件カード群を包む広い背景パネル */
+/* 💡 【左側背景】文字と物件カード群を包む広い半透明パネル */
 .market-container, 
 .auction-cards-wrapper {
-    background: rgba(255, 255, 255, 0.65); /* プレイヤーの場と同じ透明度 */
-    backdrop-filter: blur(4px);            /* 後ろを上品にぼかすエフェクト */
-    border: 1px solid rgba(225, 215, 193, 0.8);
-    border-radius: 12px;
-    padding: 10px 15px;                    /* 上下余白10px、左右余白15px */
-    box-sizing: border-box;
-    margin-bottom: 0;                      /* 隙間は親の grid gap に任せるためリセット */
-    
-    /* 🛠️ 内部の「文字」と「カードエリア」を上下の2層に分ける設定 */
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;        /* 上下に綺麗に振り分ける */
-    align-items: flex-start;               /* 左寄せ（文字もカードも左端に揃う） */
-    
-    /* 🛠️ 縦の長さの計算：文字(約20px) ＋ 隙間(8px) ＋ カード(132px) ＋ 上下余白(20px) ＝ 180px */
-    min-height: 180px;
-    flex-grow: 1;
-}
-
-/* 💡 左上の角に配置されるテキストラベル（「競売にかけられた物件」などの文字） */
-.market-container h3,
-.auction-cards-wrapper h3,
-.market-title {
-    margin: 0 0 8px 0;                     /* 下に少しだけ隙間を作ってカードと離す */
-    font-size: 0.95rem;
-    font-weight: bold;
-    color: #7e5109;                        /* マイルドなクラフト調に合う濃い茶系カラー */
-    align-self: flex-start;                /* 確実に左上の角に固定 */
-}
-
-/* 💡 テキストラベルの下にカードを横並びにするFlexbox */
-.market-cards,
-#card-area-auction {
-    display: flex;
-    gap: 12px;                             /* カード同士の横の隙間 */
-    flex-wrap: wrap;                       /* 幅を超えたら綺麗に自動折り返し */
-    align-items: flex-end;
-    width: 100%;                           /* 横幅いっぱいにカードを並べられるように設定 */
-}
-
-/* 💡 【右側・カード1枚分より少し大きい】完全に独立した山札専用の背景パネル */
-#deck-pile-visual {
-    grid-column: 2;                        /* グリッドの2列目（右側）に配置 */
-    
+    /* 🛠️ 右側と完全に統一された半透明の白背景 */
     background: rgba(255, 255, 255, 0.65) !important;
     backdrop-filter: blur(4px);
     border: 1px solid rgba(225, 215, 193, 0.8) !important;
     border-radius: 12px;
+    
+    padding: 12px 15px;
+    box-sizing: border-box;
+    margin-bottom: 0; /* 隙間は親の grid gap に任せるためリセット */
+    
+    /* 内部の「文字」と「カード」を上下2層に分ける設定 */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-start; /* 左寄せ */
+    
+    /* 縦の最低高さを定義（文字＋隙間＋カードの合計値） */
+    min-height: 180px;
+    flex-grow: 1;
+}
+
+/* 左上の角に配置されるテキストラベル（「競売にかけられた物件」） */
+.market-container h3,
+.auction-cards-wrapper h3,
+.market-title {
+    margin: 0 0 8px 0;
+    font-size: 0.95rem;
+    font-weight: bold;
+    color: #7e5109;
+    align-self: flex-start;
+}
+
+/* テキストラベルの下に物件カードを横並びにするFlexbox */
+.market-cards,
+#card-area-auction {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    width: 100%;
+}
+
+/* 💡 【右側背景】山札を包む完全独立した専用の背景パネル */
+#deck-pile-visual {
+    grid-column: 2; /* グリッドの2列目（右側）に強制配置 */
+    
+    /* 🛠️ 左側の物件コンテナと「全く同じ色・全く同じ質感」に統一 */
+    background: rgba(255, 255, 255, 0.65) !important;
+    backdrop-filter: blur(4px) !important;
+    border: 1px solid rgba(225, 215, 193, 0.8) !important;
+    border-radius: 12px;
+    
     padding: 8px;
     box-sizing: border-box;
     
-    /* 🛠️ 左側の物件エリア（180px）と「縦の長さ」を完全に一致させて綺麗に四角く見せる */
+    /* 🛠️ 左側のコンテナと高さを完全に一致させ、四隅のラインを揃える指定 */
     width: 110px !important;
-    height: 180px !important;
+    min-height: 180px; /* 左側と同じ最低高さを保証 */
     
-    /* 過去の absolute 配置による固定位置やマージンの干渉をすべて上書きリセット */
+    /* 過去の absolute 配置による固定位置やマージンの干渉をリセット */
     position: static !important;
     transform: none !important;
     margin: 0 !important;
@@ -340,21 +344,27 @@ button:active, .btn-sidebar:active {
     align-items: center;
 }
 
-/* 山札のビジュアル（緑色の本家風カードデザイン） */
+/* 💡 山札カードのビジュアル（ご指定の「薄緑・ライトグリーン」デザイン） */
 .deck-card {
-    width: 92px;                           /* 他のゲームカードと横幅を完全統一 */
-    height: 132px;                          /* 他のゲームカードと縦幅を完全統一 */
-    background: linear-gradient(135deg, #27ae60, #2ecc71);
-    color: white;
+    width: 92px;   /* 他のゲームカードとサイズを完全統一 */
+    height: 132px;  /* 他のゲームカードとサイズを完全統一 */
+    
+    /* 🛠️ 元の濃い緑から、目に優しい爽やかな薄緑（ペールグリーン）のグラデーションへ変更 */
+    background: linear-gradient(135deg, #a3e4d7 0%, #76d7c4 100%);
+    border: 2px solid #ffffff;
+    border-radius: 8px;
+    box-shadow: 2px 4px 8px rgba(0,0,0,0.1);
+    box-sizing: border-box;
+    
+    /* 文字の装飾（白文字＋可読性のための薄いシャドウ） */
+    color: #ffffff;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.15);
+    
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
-    font-weight: bold;
-    box-shadow: 2px 4px 10px rgba(0,0,0,0.15);
-    border: 2px solid #ffffff;
-    box-sizing: border-box;
 }
 
 /* 💬 入札状況ログ・ステータス表示グリッド */

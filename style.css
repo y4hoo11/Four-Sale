@@ -256,61 +256,72 @@ button:active, .btn-sidebar:active {
 }
 
 /* ==========================================================================
-   🏢 物件・小切手エリア（マーケット全体の背景調整と山札の右端固定）
+   🏢 物件・小切手エリア（縦の長さをカードサイズへジャストフィットに調整）
    ========================================================================== */
 
-/* 物件エリア全体を包むコンテナ（プレイヤーの場と同じ透明白背景を適用） */
-.market-container, .auction-cards-wrapper {
+/* 💡 物件エリアと山札エリアを横に並べるための親コンテナ */
+.auction-board {
+    display: grid;
+    /* 左側（メイン）は下のメインエリアと等幅で伸縮、右側は山札用に110pxで固定 */
+    grid-template-columns: 1fr 110px;
+    gap: 15px;
+    width: 100%;
+    box-sizing: border-box;
+    align-items: center; /* 🛠️ 左右の要素が縦に伸びるのを防ぎ、中央に綺麗に並べる */
+}
+
+/* 💡 【左側・残り全部】物件カードを並べる上品な白の透明背景 */
+.market-container, 
+.auction-cards-wrapper {
     background: rgba(255, 255, 255, 0.65); /* プレイヤーの場と同じ透明度 */
     backdrop-filter: blur(4px);            /* 後ろを上品にぼかすエフェクト */
     border: 1px solid rgba(225, 215, 193, 0.8);
     border-radius: 12px;
-    padding: 15px;
+    
+    /* 🛠️ 縦の長さを抑えるためのキー調整 */
+    padding: 6px 12px;        /* 上下の余白（6px）を限界まで狭くして縦幅を圧縮 */
+    min-height: 144px;        /* カード高さ(132px)＋上下余白(12px)でジャストフィットに固定 */
     box-sizing: border-box;
-    margin-bottom: 15px;
+    margin-bottom: 0;         /* 隙間は grid の gap に任せるためリセット */
     
-    /* 💡 このコンテナ自体を絶対配置の基準（親）にします */
     position: relative; 
-    
-    /* 💡 左側の物件カードがどれだけ増えても、右端の山札カードと重ならないように余白を広く確保 */
-    padding-right: 130px; 
-}
-
-.auction-board {
-    display: flex;
-    gap: 15px;
-    align-items: center;
-    width: 100%;
-}
-
-.auction-cards-wrapper {
-    flex-grow: 1;
-    min-height: 150px;
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
     align-items: center;
+    flex-grow: 1;
 }
 
-/* 💡 山札カードを他の物件カードの並びから完全に切り離し、右端に「孤立」させて固定配置 */
-.deck-pile-card {
-    position: absolute;       /* 💡 親要素を基準に自由配置 */
-    right: 15px;               /* 💡 右のフチから15px離れた場所に固定 */
-    top: 50%;                  /* 💡 上下中央に配置 */
-    transform: translateY(-50%); /* 💡 きれいに上下中央を揃える調整 */
+/* 💡 【右側・カード1枚分より少し大きい】山札を包む専用の背景パネル */
+#deck-pile-visual {
+    grid-column: 2; /* グリッドの2列目（右側）に強制配置 */
     
-    width: 92px !important;    /* 下部の .game-card のサイズと完全に統一 */
-    height: 132px !important;  /* 下部の .game-card のサイズと完全に統一 */
+    background: rgba(255, 255, 255, 0.65) !important;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(225, 215, 193, 0.8) !important;
+    border-radius: 12px;
+    
+    /* 🛠️ 左側の物件エリアと「縦の長さ」を完全に一致させるための調整 */
+    padding: 6px;
+    width: 110px !important;
+    height: 144px !important; /* 左側と同じ144pxに指定して高さを完全に統一 */
     box-sizing: border-box;
-    border-radius: 8px;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.08);
-    margin: 0 !important;      /* Flexboxによる自動マージンや隙間計算をすべて無効化 */
+    
+    /* 過去の absolute 配置の干渉をすべて上書きリセット */
+    position: static !important;
+    transform: none !important;
+    margin: 0 !important;
+    
+    display: flex !important;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 }
 
-/* 山札のビジュアル */
+/* 山札のビジュアル（緑色の本家風カードデザイン） */
 .deck-card {
-    width: 100px;
-    height: 140px;
+    width: 92px;   /* 下部のカードと横幅を完全に統一 */
+    height: 132px;  /* 下部のカードと縦幅を完全に統一 */
     background: linear-gradient(135deg, #27ae60, #2ecc71);
     color: white;
     display: flex;
@@ -321,6 +332,7 @@ button:active, .btn-sidebar:active {
     font-weight: bold;
     box-shadow: 2px 4px 10px rgba(0,0,0,0.15);
     border: 2px solid #ffffff;
+    box-sizing: border-box;
 }
 
 /* 💬 入札状況ログ・ステータス表示グリッド */

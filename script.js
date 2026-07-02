@@ -64,7 +64,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("be-host-btn")?.addEventListener("click", beHost);
     document.getElementById("join-room-btn")?.addEventListener("click", joinRoom);
     // 待機ロビーとゲーム内、両方の離脱ボタンに処理を登録する
+    // 待機ロビーとゲーム内、両方の離脱ボタンに処理を登録する
     const handleLeave = () => {
+        if (!confirm("本当に部屋を離脱しますか？")) return;
         leaveRoom();
         // 離脱時はログイン情報をクリアしてUIを初期化する
         window.myId = null; 

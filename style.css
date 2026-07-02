@@ -551,17 +551,25 @@ button:active, .btn-sidebar:active {
    🎮 ゲーム上部バー（コンパクトな入札・パスボタン）
    ========================================================================== */
 .game-top-bar {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    background: #e8f8f5;
-    padding: 12px 15px;
-    border-radius: 8px;
-    border-left: 5px solid #2ecc71;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    margin-bottom: 15px;
+    gap: 12px;
+}
+.game-top-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+}
+.game-top-actions {
+    display: flex;
+    gap: 8px;
+}
+.game-top-leave-btn, .game-top-next-btn {
+    width: auto;
+    white-space: nowrap;
 }
 .game-status-text {
     font-weight: bold;
@@ -596,8 +604,8 @@ button:active, .btn-sidebar:active {
 .game-card,
 #card-area .card {
     position: relative;
-    width: 64px;
-    height: 92px;
+    width: 92px;
+    height: 132px;
     background: #ffffff;
     border: 2px solid #dcd1be;
     border-radius: 8px;
@@ -605,7 +613,7 @@ button:active, .btn-sidebar:active {
     flex-direction: column;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 6px;
+    padding: 6px 8px;
     box-sizing: border-box;
     box-shadow: 0 3px 8px rgba(0,0,0,0.12);
     flex-shrink: 0;
@@ -620,20 +628,21 @@ button:active, .btn-sidebar:active {
     box-shadow: 0 8px 16px rgba(139,69,19,0.25);
     border-color: #b77c7c;
 }
-.card-top-num {
-    align-self: flex-start;
+/* 💡 左右2つの数字を並べる行（上段・下段共通） */
+.card-num-row {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
     font-weight: bold;
-    font-size: 1.05rem;
+    font-size: 1.15rem;
     line-height: 1;
+    box-sizing: border-box;
 }
 .card-illustration {
-    font-size: 1.6rem;
+    font-size: 2rem;
     line-height: 1;
 }
-.card-bottom-num {
-    align-self: flex-end;
-    font-weight: bold;
-    font-size: 1.05rem;
-    line-height: 1;
-    transform: rotate(180deg); /* 💡 逆さ表記 */
+/* 下段だけ180度回転させ、逆さ表記に */
+.card-num-row.card-row-bottom {
+    transform: rotate(180deg);
 }

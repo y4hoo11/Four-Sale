@@ -46,13 +46,15 @@
         <div class="game-board">
         
             <div class="game-top-bar">
-                <div id="role-display" class="game-status-text">あなたのアクションを選んでください</div>
-                <div style="display: flex; gap: 5px;">
-                    <button id="submit-bid-btn" class="btn-secondary" style="background:#3498db;">入札</button>
-                    <button id="submit-pass-btn" class="btn-danger">パス</button>
-                    <button id="next-round-btn" class="btn-primary" style="display: none;">⏭️ 次ラウンド</button>
-                    <button id="leave-room-btn" class="btn-danger" style="padding: 6px 12px; font-size:0.85rem;">🚪 離脱</button>
+                <button id="leave-room-btn" class="btn-danger game-top-leave-btn">🚪 離脱</button>
+                <div class="game-top-center">
+                    <div id="role-display" class="game-status-text">あなたのアクションを選んでください</div>
+                    <div class="game-top-actions">
+                        <button id="submit-bid-btn" class="btn-secondary" style="background:#3498db;">入札</button>
+                        <button id="submit-pass-btn" class="btn-danger">パス</button>
+                    </div>
                 </div>
+                <button id="next-round-btn" class="btn-primary game-top-next-btn" style="display: none;">⏭️ 次ラウンド</button>
             </div>
 
             <div class="game-main-area">

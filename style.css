@@ -193,6 +193,23 @@ button:active, .btn-sidebar:active {
     margin: 0;
 }
 
+/* 若干赤みのある角丸の横長ボックス */
+#lobby-room-id-display {
+    display: inline-block;
+    padding: 10px 24px;
+    background: rgba(0, 0, 0, 0.05); /* 元の薄いグレーの背景 */
+    border-radius: 5px;             /* 元の少し角ばった角丸 */
+    font-weight: bold;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+}
+
+#lobby-current-room-id {
+    color: #d9534f;                 /* 元の若干赤い文字色 */
+    font-size: 1.2rem;              /* 元の少し大きめのサイズ */
+    letter-spacing: 1px;
+}
+
 /* ロビーのプレイヤー1人分の枠 */
 .lobby-player-item {
     display: flex;

@@ -373,8 +373,8 @@ button:active, .btn-sidebar:active {
 
 /* 💡 山札カードのビジュアル（ご指定の「薄緑・ライトグリーン」） */
 .deck-card {
-    width: 92px;   /* 他の物件カードの横幅と完全に一致させる */
-    height: 132px;  /* 他の物件カードの縦幅と完全に一致させる */
+    width: 92px;
+    aspect-ratio: 1 / 1.43;
     
     /* 爽やかで上品な薄緑のグラデーション */
     background: linear-gradient(135deg, #a3e4d7 0%, #76d7c4 100%);
@@ -556,7 +556,7 @@ button:active, .btn-sidebar:active {
 .card {
     position: relative;
     width: 92px;
-    height: 132px;
+    aspect-ratio: 1 / 1.43;   /* 💡 固定height指定から、幅基準の比率指定に変更 */
     background: #ffffff;
     border: 2px solid #dcd1be;
     border-radius: 8px;
@@ -612,15 +612,26 @@ button:active, .btn-sidebar:active {
     font-size: 2rem;
     line-height: 1;
 }
-/* 🖼️ 物件カードの画像本体（カード全体を覆う） */
+/* 🖼️ 物件カードの画像本体（カード全体を覆う・最背面） */
 .card-image {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 6px; /* 親.cardのborder-radiusより少し小さく */
+    border-radius: 6px;
     z-index: 0;
+}
+/* 🎨 「Four Sale 柄」の装飾フレーム（イラストの上に重ねる） */
+.card-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;   /* 枠線なのでカード全体にぴったり合わせて伸縮 */
+    border-radius: 6px;
+    z-index: 1;
+    pointer-events: none; /* クリックを下の要素・カード本体に通す */
 }
 /* 画像読み込み失敗時のフォールバック絵文字（onerrorで表示） */
 .card-illustration-fallback {
@@ -633,7 +644,7 @@ button:active, .btn-sidebar:active {
     justify-content: center;
     z-index: 0;
 }
-/* 💡 画像の上に乗る四隅の数字は視認性のため白文字＋強めの影に変更 */
+/* 💡 画像の上に乗る四隅の数字は視認性のため白文字＋強めの影に、最前面に */
 .game-card .card-num,
 #card-area .card .card-num {
     z-index: 2;

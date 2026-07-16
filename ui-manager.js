@@ -28,6 +28,10 @@ function getCardImagePath(val) {
     const num = String(val).padStart(2, '0'); // 1 → "01", 30 → "30"
     return `./image/Four Sale ${num}.png`;
 }
+// 物件カードの装飾フレーム画像パス（全カード共通の1枚）
+function getCardFramePath() {
+    return `./image/Four Sale 柄.png`;
+}
 
 export function hostStartGame() {
     if (!isHost) return;
@@ -366,6 +370,7 @@ function renderMarket() {
                     <img src="${getCardImagePath(val)}" alt="物件 No.${val}" class="card-image"
                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                     <div class="card-illustration-fallback" style="display:none;">${getCardEmoji(val)}</div>
+                    <img src="${getCardFramePath()}" alt="" class="card-frame">
                     <div class="card-num card-num-top-left">${val}</div>
                     <div class="card-num card-num-top-right">${val}</div>
                     <div class="card-num card-num-bottom-left">${val}</div>
@@ -516,9 +521,12 @@ function renderConsoleAndHand() {
                 const card = document.createElement("div");
                 card.className = "card";
                 card.innerHTML = `
+                    <img src="${getCardImagePath(val)}" alt="物件 No.${val}" class="card-image"
+                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="card-illustration-fallback" style="display:none;">${getCardEmoji(val)}</div>
+                    <img src="${getCardFramePath()}" alt="" class="card-frame">
                     <div class="card-num card-num-top-left">${val}</div>
                     <div class="card-num card-num-top-right">${val}</div>
-                    <div class="card-illustration">${getCardEmoji(val)}</div>
                     <div class="card-num card-num-bottom-left">${val}</div>
                     <div class="card-num card-num-bottom-right">${val}</div>
                 `;

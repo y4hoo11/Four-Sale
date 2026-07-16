@@ -65,11 +65,15 @@ export function hostAbortGame() {
 
 export function hostNextRound() {
     if (!isHost) return;
-    const currentScores = {};
-    game.players.forEach(p => { currentScores[p.id] = p.score; });
-    rawPlayerList.forEach(p => {
-        p.score = currentScores[p.id] || 0;
-    });
+
+    // 💡 前ラウンドの勝者（1位）に勝利数を+1する
+    if (game.lastRoundWinnerId) {
+        const winnerInList = rawPlayerList.find(p => p.id === game.lastRoundWinnerId);
+        if (winnerInList) {
+            winnerInList.wins = (winnerInList.wins || 0) + 1;
+        }
+    }
+
     const success = game.initRound(rawPlayerList);
     if (success) {
         const nextBtn = document.getElementById("next-round-btn");
@@ -130,14 +134,26 @@ export function updateUI() {
             roleDisplayEl.innerText = isHost ? "👑 ホスト（待機中）" : "🟢 ゲスト（接続済み・待機中）";
             roleDisplayEl.style.color = "#2c3e50";
         } else if (game.players) {
-            const currentTurnPlayer = game.players[game.turnIndex];
-            if (currentTurnPlayer) {
-                if (currentTurnPlayer.id === window.myId) {
-                    roleDisplayEl.innerText = "あなたのターンです。行動を選択してください。";
+            if (game.phase === "SELL") {
+                const me = game.players.find(p => p.id === window.myId);
+                if (me && !me.hasPassed) {
+                    roleDisplayEl.innerText = "物件カードを1枚選んで裏向きに提示してください。";
                     roleDisplayEl.style.color = "#e74c3c";
                 } else {
-                    roleDisplayEl.innerText = `${currentTurnPlayer.name} の手番を待っています...`;
+                    const waitingCount = game.players.filter(p => !p.hasPassed).length;
+                    roleDisplayEl.innerText = `提示済みです。他 ${waitingCount}人 の提示を待っています...`;
                     roleDisplayEl.style.color = "#2c3e50";
+                }
+            } else {
+                const currentTurnPlayer = game.players[game.turnIndex];
+                if (currentTurnPlayer) {
+                    if (currentTurnPlayer.id === window.myId) {
+                        roleDisplayEl.innerText = "あなたのターンです。行動を選択してください。";
+                        roleDisplayEl.style.color = "#e74c3c";
+                    } else {
+                        roleDisplayEl.innerText = `${currentTurnPlayer.name} の手番を待っています...`;
+                        roleDisplayEl.style.color = "#2c3e50";
+                    }
                 }
             }
         }
@@ -224,7 +240,7 @@ function renderLobbyPlayerList() {
         
         const badge = document.createElement("span");
         badge.className = "score-badge";
-        badge.innerText = `${p.score || 0}勝`;
+        badge.innerText = `${p.wins || 0}勝`;
         
         nameGroup.appendChild(nameSpan);
         nameGroup.appendChild(badge);
@@ -265,15 +281,17 @@ function renderSidePlayerList() {
         card.className = "side-player-card";
         if (p.disconnected) card.classList.add("disconnected");
         
-        const currentTurnPlayer = game.players[game.turnIndex];
-        if (currentTurnPlayer && currentTurnPlayer.id === p.id) {
-            card.classList.add("active-turn");
+        if (game.phase === "BID") {
+            const currentTurnPlayer = game.players[game.turnIndex];
+            if (currentTurnPlayer && currentTurnPlayer.id === p.id) {
+                card.classList.add("active-turn");
+            }
         }
 
         const hostCrown = p.isHost ? "👑 " : "";
         const nameDiv = document.createElement("div");
         nameDiv.className = "side-player-name";
-        nameDiv.innerHTML = `<span>${hostCrown}${p.name}</span> <span class="score-badge">${p.score || 0}勝</span>`;
+        nameDiv.innerHTML = `<span>${hostCrown}${p.name}</span> <span class="score-badge">${p.wins || 0}勝</span>`;
         card.appendChild(nameDiv);
 
         const statsDiv = document.createElement("div");
@@ -487,28 +505,10 @@ function renderConsoleAndHand() {
         const bidBtn = document.getElementById("submit-bid-btn");
         const passBtn = document.getElementById("submit-pass-btn");
         if (bidBtn && passBtn) {
-            if (isMyTurn && !me.hasPassed) {
-                bidBtn.style.display = "inline-block";
-                passBtn.style.display = "inline-block";
-                bidBtn.disabled = false;
-                passBtn.disabled = false;
-                bidBtn.onclick = () => {
-                    if (currentSelectedCoins < minNeed) {
-                        return;
-                    }
-                    if (currentSelectedCoins > me.coins) {
-                        alert("手持ちのコイン以上の入札はできません。");
-                        return;
-                    }
-                    executePlayCard(currentSelectedCoins, {});
-                };
-                passBtn.onclick = () => { executePlayCard(-1, {}); };
-            } else {
-                bidBtn.style.display = "none";
-                passBtn.style.display = "none";
-                bidBtn.disabled = true;
-                passBtn.disabled = true;
-            }
+            bidBtn.style.display = "none";
+            passBtn.style.display = "none";
+            bidBtn.disabled = true;
+            passBtn.disabled = true;
         }
 
         if (me.hasPassed) {
@@ -530,7 +530,7 @@ function renderConsoleAndHand() {
                     <div class="card-num card-num-bottom-left">${val}</div>
                     <div class="card-num card-num-bottom-right">${val}</div>
                 `;
-                if (isMyTurn) {
+                if (!me.hasPassed) {                // ← 自分がまだ提示していなければ常にクリック可能
                     card.onclick = () => { if (confirm(`物件 No.${val} を提示しますか？`)) executePlayCard(val, {}); };
                     card.style.cursor = "pointer";
                 } else {

@@ -126,7 +126,7 @@ function beHost() {
     window.myPlayerName = nameInput ? nameInput.value.trim() : "ホスト";
     setIsHost(true);
 
-    const initialList = [{ id: window.myId, name: window.myPlayerName, spectator: false, score: 0, isHost: true, disconnected: false }];
+    const initialList = [{ id: window.myId, name: window.myPlayerName, spectator: false, score: 0, wins: 0, isHost: true, disconnected: false }];
     setRawPlayerList(initialList);
 
     document.getElementById("setup-container").style.display = "none";

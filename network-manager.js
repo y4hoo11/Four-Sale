@@ -98,6 +98,7 @@ export function handleHostReceiveData(conn, data) {
                         name: finalName, // 被らない安全な名前を適用
                         spectator: isSpectator,
                         score: 0,
+                        wins: 0,
                         isHost: false, // 確実にゲスト（false）として追加
                         disconnected: false
                     });
@@ -109,21 +110,31 @@ export function handleHostReceiveData(conn, data) {
             updateUI();
             break;
 
-        case "ACTION":
-            if (!game.isGameStarted) return;
-            
-            console.log("=== 【通信受信デバッグ】 ===");
-            const currentPlayer = game.players[game.turnIndex];
-            if (currentPlayer && currentPlayer.id === data.playerId) {
-                const actualValue = data.cardValue !== undefined ? data.cardValue : (data.actionValue !== undefined ? data.actionValue : data.value);
-                console.log("ロジックに渡す実際の値:", actualValue);
+        // ✅ 修正版
+        case "ACTION": {
+            if (!game.isGameStarted) return;
 
-                game.playCard(data.playerId, actualValue, data.target);
-                
-                broadcastState();
-                updateUI();
-            }
-            break;
+            const actionPlayer = game.players.find(pl => pl.id === data.playerId);
+            if (!actionPlayer) break;
+
+            let isAllowedToAct = false;
+            if (game.phase === "BID") {
+                // BIDフェーズは従来通りターン制
+                const currentPlayer = game.players[game.turnIndex];
+                isAllowedToAct = currentPlayer && currentPlayer.id === data.playerId;
+            } else {
+                // SELLフェーズは順不同・全員同時進行（まだ提示していなければOK）
+                isAllowedToAct = !actionPlayer.hasPassed;
+            }
+
+            if (isAllowedToAct) {
+                const actualValue = data.cardValue !== undefined ? data.cardValue : (data.actionValue !== undefined ? data.actionValue : data.value);
+                game.playCard(data.playerId, actualValue, data.target);
+                broadcastState();
+                updateUI();
+            }
+            break;
+        }
 
         case "LEAVE":
             handlePlayerDisconnect(conn.peer);
@@ -575,6 +586,7 @@ export function hostCreateRoom(myName) {
             name: myName || "ホスト",
             spectator: false,
             score: 0,
+            wins: 0,
             isHost: true,
             disconnected: false
         }];

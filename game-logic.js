@@ -7,6 +7,8 @@ class FourSaleGame {
         this.turnIndex = 0;
         this.logMessages = [];
 
+        this.lastRoundWinnerId = null;
+
         // フォーセールのコアデータ
         this.phase = "BID"; // "BID" (フェーズ1: 物件の競り) または "SELL" (フェーズ2: 小切手売却)
         this.deck = [];     // 現在のフェーズの山札（物件カード or 小切手カード）
@@ -180,22 +182,21 @@ class FourSaleGame {
             // ----------------------------------------------------
             // 【フェーズ2: 売却】での処理
             // ----------------------------------------------------
+            if (p.hasPassed) return; // 既に提示済みなら無視（二重送信ガード）
             if (!p.hand.includes(actionValue)) return;
-            
-            p.bid = actionValue; // 出した物件を一時的にbid変数に格納して判定に使う
-            p.hasPassed = true;  // 出し終わったフラグ
-            
-            // 手札から消費
-            p.hand = p.hand.filter(v => v !== actionValue);
-            this.log(`🏠 ${p.name} が物件 <b>No.${actionValue}</b> を提示しました（裏向き）。`);
 
-            // 全員が出し終えたかチェック
+            p.bid = actionValue;
+            p.hasPassed = true;
+            p.hand = p.hand.filter(v => v !== actionValue);
+
+            // 💡 裏向きなので中身（番号）はログに出さない
+            this.log(`🏠 ${p.name} が物件を提示しました（裏向き）。`);
+
             const allSubmitted = this.players.every(pl => pl.hasPassed);
             if (allSubmitted) {
                 this.resolveSellPhase();
-            } else {
-                this.advanceTurn();
             }
+            // 💡 SELLフェーズはターン制ではないため advanceTurn() は呼ばない
         }
     }
 
@@ -343,32 +344,29 @@ class FourSaleGame {
     }
 
     // 最終決算
+    // ✅ 修正版：勝者のIDも一緒に記録しておく
     endRound() {
         this.log("🏁 <b>ゲームが終了しました！最終決算を行います。</b>");
-        
         let winner = null;
+        let winnerId = null;
         let maxTotal = -1;
-
         this.players.forEach(p => {
-            const checkTotal = p.checks.reduce((sum, v) => sum + v, 0); // 小切手の合計
-            const coinBonus = p.coins;                                  // 残ったコイン枚数
-            
-            // 最終スコア ＝ 小切手合計 ＋ 残ったコインの枚数分
+            const checkTotal = p.checks.reduce((sum, v) => sum + v, 0);
+            const coinBonus = p.coins;
             const finalScore = checkTotal + coinBonus;
-            p.score = finalScore; // UIバッジに最終スコアを表示
-
+            p.score = finalScore;
             this.log(`📊 ${p.name}: 小切手 <b>$${checkTotal},000</b> + 残りコイン <b>🪙${coinBonus}枚</b> ➡️ 最終スコア: <b>${finalScore}</b>`);
-
             if (finalScore > maxTotal) {
                 maxTotal = finalScore;
                 winner = p.name;
+                winnerId = p.id;
             }
         });
-
         this.log(`🎉 🏆 勝者は <b>${winner}</b> です！おめでとうございます！`);
         this.isGameEndedStatus = true;
+        this.lastRoundWinnerId = winnerId; // 💡 追加：次ラウンド開始時にui-manager側から参照する
     }
-
+    
     isGameEnded() {
         return this.isGameEndedStatus || false;
     }

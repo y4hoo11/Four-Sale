@@ -532,24 +532,30 @@ export function hostTransferAuthority(peerId) {
 
 // 部屋を離脱
 export function leaveRoom() {
-    if (isHost) {
-        const nextHost = rawPlayerList.find(p => p.id !== window.myId && !p.disconnected);
-        if (nextHost) {
-            transferHostPrivilege(nextHost.id);
-            return;
-        }
-        guestConnections.forEach(conn => {
-            if (conn.open) conn.close();
-        });
-    } else {
-        if (connToHost && connToHost.open) {
-            connToHost.send({ type: "LEAVE" });
-            connToHost.close();
-        }
-    }
-    setTimeout(() => {
-        window.location.reload();
-    }, 200);
+    if (isHost) {
+        const nextHost = rawPlayerList.find(p => p.id !== window.myId && !p.disconnected);
+        if (nextHost) {
+            transferHostPrivilege(nextHost.id);
+            return;
+        }
+        guestConnections.forEach(conn => {
+            if (conn.open) conn.close();
+        });
+        setTimeout(() => {
+            window.location.reload();
+        }, 200);
+    } else {
+        if (connToHost && connToHost.open) {
+            connToHost.send({ type: "LEAVE" });
+            // 💡 送信が確実に相手に届くよう、少し待ってからクローズ＆リロード
+            setTimeout(() => {
+                try { connToHost.close(); } catch(e) {}
+                window.location.reload();
+            }, 300);
+        } else {
+            window.location.reload();
+        }
+    }
 }
 
 // HTML側のUI操作ヘルパー
@@ -759,3 +765,9 @@ export function transferHostPrivilege(newHostId) {
         guestJoinRoom(newHostId, myName);
     }, 1500);
 }
+
+window.addEventListener("beforeunload", () => {
+    if (!isHost && connToHost && connToHost.open) {
+        try { connToHost.send({ type: "LEAVE" }); } catch(e) {}
+    }
+});

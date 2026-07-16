@@ -822,9 +822,9 @@ button:active, .btn-sidebar:active {
 }
 /* 現在の手番のプレイヤーを強調 */
 .side-player-card.active-turn {
-    border-left-color: #e74c3c;
-    background: #fff6f5;
-    box-shadow: 0 4px 10px rgba(231,76,60,0.15);
+    border-left-color: #1abc9c;
+    background: #f2fdfb;
+    box-shadow: 0 4px 10px rgba(26,188,156,0.2);
 }
 /* 切断中のプレイヤーは薄暗く */
 .side-player-card.disconnected {
@@ -858,4 +858,32 @@ button:active, .btn-sidebar:active {
     .game-side-players {
         grid-column: 1;
     }
+}
+
+/* ==========================================================================
+   🚪 退出（切断）したプレイヤーの共通表示（赤の半透明＋斜線オーバーレイ）
+   ========================================================================== */
+.player-disconnected {
+    position: relative;
+    opacity: 0.75;
+}
+.player-disconnected::after {
+    content: "退出済み";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: rgba(192, 57, 43, 0.85);
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(231, 76, 60, 0.28),
+        rgba(231, 76, 60, 0.28) 10px,
+        rgba(231, 76, 60, 0.08) 10px,
+        rgba(231, 76, 60, 0.08) 20px
+    );
+    border-radius: inherit;
+    pointer-events: none;
 }

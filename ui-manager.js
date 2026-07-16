@@ -229,6 +229,7 @@ function renderLobbyPlayerList() {
     rawPlayerList.forEach(p => {
         const item = document.createElement("div");
         item.className = "lobby-player-item";
+        if (p.disconnected) item.classList.add("player-disconnected");
         
         const nameGroup = document.createElement("div");
         nameGroup.className = "lobby-player-name-group";
@@ -279,7 +280,7 @@ function renderSidePlayerList() {
 
         const card = document.createElement("div");
         card.className = "side-player-card";
-        if (p.disconnected) card.classList.add("disconnected");
+        if (p.disconnected) card.classList.add("player-disconnected");
         
         if (game.phase === "BID") {
             const currentTurnPlayer = game.players[game.turnIndex];
@@ -318,6 +319,8 @@ function renderBidStatusBoard() {
         
         if (p.id === window.myId) box.classList.add("current-player");
         if (game.phase === "BID" && p.hasPassed) box.classList.add("passed-out");
+        const rawInfo = rawPlayerList.find(rp => rp.id === p.id);
+        if (rawInfo && rawInfo.disconnected) box.classList.add("player-disconnected");
 
         const textContainer = document.createElement("div");
         textContainer.style.fontSize = "0.85rem";

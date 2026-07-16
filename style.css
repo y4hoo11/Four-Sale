@@ -612,6 +612,34 @@ button:active, .btn-sidebar:active {
     font-size: 2rem;
     line-height: 1;
 }
+/* 🖼️ 物件カードの画像本体（カード全体を覆う） */
+.card-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 6px; /* 親.cardのborder-radiusより少し小さく */
+    z-index: 0;
+}
+/* 画像読み込み失敗時のフォールバック絵文字（onerrorで表示） */
+.card-illustration-fallback {
+    font-size: 2rem;
+    line-height: 1;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 0;
+}
+/* 💡 画像の上に乗る四隅の数字は視認性のため白文字＋強めの影に変更 */
+.game-card .card-num,
+#card-area .card .card-num {
+    z-index: 2;
+    color: #ff0000;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.7);
+}
 
 /* ==========================================================================
    👥 プレイヤーリスト（サイドバーゲーム中用コンテナ）

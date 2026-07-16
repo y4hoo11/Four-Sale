@@ -23,6 +23,12 @@ function getCardEmoji(val) {
     return "🚀"; 
 }
 
+// 物件カードの画像パスを取得するヘルパー
+function getCardImagePath(val) {
+    const num = String(val).padStart(2, '0'); // 1 → "01", 30 → "30"
+    return `./image/Four Sale ${num}.png`;
+}
+
 export function hostStartGame() {
     if (!isHost) return;
     const success = game.initRound(rawPlayerList);
@@ -356,11 +362,12 @@ function renderMarket() {
             const card = document.createElement("div");
             card.className = "game-card";
             if (game.phase === "BID") {
-                card.style.background = "#fff";
                 card.innerHTML = `
+                    <img src="${getCardImagePath(val)}" alt="物件 No.${val}" class="card-image"
+                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="card-illustration-fallback" style="display:none;">${getCardEmoji(val)}</div>
                     <div class="card-num card-num-top-left">${val}</div>
                     <div class="card-num card-num-top-right">${val}</div>
-                    <div class="card-illustration">${getCardEmoji(val)}</div>
                     <div class="card-num card-num-bottom-left">${val}</div>
                     <div class="card-num card-num-bottom-right">${val}</div>
                 `;
